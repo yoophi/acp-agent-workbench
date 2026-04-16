@@ -1,0 +1,28 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ACP Agent Workbench",
+  "version": "0.1.0",
+  "identifier": "com.yoophi.acp-poc-tauri",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "ACP Agent Workbench",
+        "width": 1280,
+        "height": 860,
+        "minWidth": 980,
+        "minHeight": 680
+      }
+    ]
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all",
+    "icon": []
+  }
+}
