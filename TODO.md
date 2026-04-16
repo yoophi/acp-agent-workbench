@@ -12,6 +12,8 @@
 - [x] permission 응답 처리를 Tauri command에서 application use case로 분리했다.
 - [x] 새 실행 시 timeline을 초기화하는 기본 정책을 코드에 명시했다.
 - [x] React event listener가 StrictMode에서 중복 등록될 수 있는 경로를 보강했다.
+- [x] ACP permission option 선택과 goal 파일 확장자 처리에 단위 테스트를 추가했다.
+- [x] `cargo check`, `cargo test`, `npm run build`로 현재 구현을 검증했다.
 
 ## Remaining
 

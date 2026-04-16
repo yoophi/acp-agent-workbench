@@ -21,3 +21,41 @@ impl GoalFileReader for LocalGoalFileReader {
         fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::LocalGoalFileReader;
+    use crate::ports::goal_file::GoalFileReader;
+    use std::{fs, path::PathBuf};
+    use uuid::Uuid;
+
+    #[test]
+    fn reads_supported_markdown_goal_file() {
+        let path = temp_goal_path("md");
+        fs::write(&path, "ship the ACP workbench").expect("write temp goal");
+
+        let content = LocalGoalFileReader
+            .read_goal_file(path.to_str().expect("utf8 path"))
+            .expect("read goal file");
+
+        assert_eq!(content, "ship the ACP workbench");
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn rejects_unsupported_goal_file_extension() {
+        let path = temp_goal_path("json");
+        fs::write(&path, "{}").expect("write temp goal");
+
+        let err = LocalGoalFileReader
+            .read_goal_file(path.to_str().expect("utf8 path"))
+            .expect_err("json files should be rejected");
+
+        assert!(err.to_string().contains("Only .txt and .md"));
+        let _ = fs::remove_file(path);
+    }
+
+    fn temp_goal_path(extension: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("acp-goal-{}.{}", Uuid::new_v4(), extension))
+    }
+}

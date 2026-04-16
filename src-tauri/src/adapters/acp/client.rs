@@ -782,3 +782,39 @@ pub fn lifecycle(status: LifecycleStatus, message: impl Into<String>) -> RunEven
         message: message.into(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::select_permission_option;
+    use serde_json::json;
+
+    #[test]
+    fn auto_allow_prefers_allow_once_before_allow_always() {
+        let options = vec![
+            json!({"kind": "allow_always", "optionId": "always"}),
+            json!({"kind": "allow_once", "optionId": "once"}),
+        ];
+
+        let selected = select_permission_option(&options, true).expect("permission option");
+
+        assert_eq!(
+            selected.get("optionId").and_then(|value| value.as_str()),
+            Some("once")
+        );
+    }
+
+    #[test]
+    fn manual_mode_still_selects_first_allow_option_as_fallback() {
+        let options = vec![
+            json!({"kind": "reject_once", "optionId": "reject"}),
+            json!({"kind": "allow_always", "optionId": "always"}),
+        ];
+
+        let selected = select_permission_option(&options, false).expect("permission option");
+
+        assert_eq!(
+            selected.get("optionId").and_then(|value| value.as_str()),
+            Some("always")
+        );
+    }
+}
