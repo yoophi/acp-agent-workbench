@@ -20,6 +20,7 @@
 - [x] `ACP_AGENT_CATALOG_PATH` JSON 파일 provider와 참고 프로젝트 기본 목록 fallback을 갖춘 agent catalog adapter를 추가했다.
 - [x] permission broker를 run_id scoped 저장소로 확장해 실행 종료/취소 시 해당 실행의 waiter만 정리한다.
 - [x] shadcn/ui CLI 기반 Button 컴포넌트와 `cn` 유틸을 도입해 기존 lightweight shared UI 버튼을 치환했다.
+- [x] ACP stdout/read loop 종료 시 pending JSON-RPC request를 오류로 해제해 비정상 종료 hang을 방지했다.
 
 ## Remaining
 

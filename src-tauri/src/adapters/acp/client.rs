@@ -94,6 +94,21 @@ impl RpcPeer {
         Ok(())
     }
 
+    async fn fail_pending(&self, message: impl Into<String>) {
+        let message = message.into();
+        let pending = {
+            let mut pending = self.pending.lock().await;
+            std::mem::take(&mut *pending)
+        };
+        for (_, tx) in pending {
+            let _ = tx.send(Err(RpcError {
+                code: -32603,
+                message: message.clone(),
+                data: None,
+            }));
+        }
+    }
+
     async fn send_value(&self, value: &Value) -> Result<()> {
         let mut writer = self.writer.lock().await;
         let mut bytes = serde_json::to_vec(value)?;
@@ -641,9 +656,12 @@ where
         let mut bytes = Vec::new();
         let read = reader.read_until(b'\n', &mut bytes).await?;
         if read == 0 {
+            peer.fail_pending("ACP connection closed").await;
             break;
         }
         if bytes.len() > limit {
+            peer.fail_pending("ACP message exceeded stdio buffer limit")
+                .await;
             bail!("ACP message exceeded stdio buffer limit of {limit} bytes");
         }
         let message: Value = match serde_json::from_slice(&bytes) {
@@ -785,8 +803,10 @@ pub fn lifecycle(status: LifecycleStatus, message: impl Into<String>) -> RunEven
 
 #[cfg(test)]
 mod tests {
-    use super::select_permission_option;
+    use super::{RpcPeer, select_permission_option};
     use serde_json::json;
+    use std::process::Stdio;
+    use tokio::process::Command;
 
     #[test]
     fn auto_allow_prefers_allow_once_before_allow_always() {
@@ -816,5 +836,25 @@ mod tests {
             selected.get("optionId").and_then(|value| value.as_str()),
             Some("always")
         );
+    }
+
+    #[tokio::test]
+    async fn fail_pending_releases_waiting_requests() {
+        let mut child = Command::new("cat")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .spawn()
+            .expect("spawn cat");
+        let stdin = child.stdin.take().expect("stdin");
+        let peer = RpcPeer::new(stdin);
+        let (tx, pending) = tokio::sync::oneshot::channel();
+        peer.pending.lock().await.insert(1, tx);
+
+        peer.fail_pending("closed for test").await;
+
+        let result = pending.await.expect("pending response");
+        assert!(result.is_err());
+        assert_eq!(result.err().expect("error").message, "closed for test");
+        let _ = child.kill().await;
     }
 }
