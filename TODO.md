@@ -30,6 +30,7 @@
 - [x] 2026-04-17 최종 작업 전 참고 프로젝트와 현재 Tauri 구현을 다시 대조하고 변경 필요 범위가 TODO 갱신 외에는 없음을 확인했다.
 - [x] 2026-04-17 현재 Tauri ACP workbench 구현을 다시 점검하고 `cargo fmt --check`, `cargo check`, `cargo test`, `npm run build` 통과를 확인했다.
 - [x] 2026-04-17 현재 요청 기준으로 참고 프로젝트의 ACP 실행/통신 흐름과 Tauri 앱 구현을 재확인하고 검증 명령을 통과시켰다.
+- [x] 2026-04-17 현재 요청 기준으로 구현 상태와 TODO를 재점검하고 남은 항목이 실제 agent/GUI 통합 검증 범위임을 확인했다.
 
 ## Remaining
 
