@@ -10,6 +10,7 @@ pub struct PermissionDecision {
 pub trait PermissionDecisionPort: Clone + Send + Sync + 'static {
     fn create_waiter(
         &self,
+        run_id: String,
         permission_id: String,
     ) -> impl Future<Output = oneshot::Receiver<PermissionDecision>> + Send;
 

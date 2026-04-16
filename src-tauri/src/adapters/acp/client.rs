@@ -248,7 +248,7 @@ where
         } else {
             let receiver = self
                 .permission_decisions
-                .create_waiter(permission_id.clone())
+                .create_waiter(self.run_id.clone(), permission_id.clone())
                 .await;
             self.emit(RunEvent::Permission {
                 permission_id: Some(permission_id.clone()),

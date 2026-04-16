@@ -41,7 +41,7 @@ impl AppState {
 
     pub async fn finish_run(&self, run_id: &str) {
         self.runs.lock().await.remove(run_id);
-        self.permissions.clear_all().await;
+        self.permissions.clear_run(run_id).await;
     }
 
     pub async fn cancel_run(&self, run_id: &str) -> bool {
@@ -54,41 +54,85 @@ impl AppState {
             None => false,
         };
         if cancelled {
-            self.permissions.clear_all().await;
+            self.permissions.clear_run(run_id).await;
         }
         cancelled
     }
 }
 
+struct PendingPermission {
+    run_id: String,
+    sender: tokio::sync::oneshot::Sender<PermissionDecision>,
+}
+
 #[derive(Clone, Default)]
 pub struct PermissionBroker {
-    pending: Arc<Mutex<HashMap<String, tokio::sync::oneshot::Sender<PermissionDecision>>>>,
+    pending: Arc<Mutex<HashMap<String, PendingPermission>>>,
 }
 
 impl PermissionDecisionPort for PermissionBroker {
     async fn create_waiter(
         &self,
+        run_id: String,
         permission_id: String,
     ) -> tokio::sync::oneshot::Receiver<PermissionDecision> {
         let (sender, receiver) = tokio::sync::oneshot::channel();
-        self.pending.lock().await.insert(permission_id, sender);
+        self.pending
+            .lock()
+            .await
+            .insert(permission_id, PendingPermission { run_id, sender });
         receiver
     }
 
     async fn respond(&self, permission_id: &str, decision: PermissionDecision) -> Result<()> {
-        let Some(sender) = self.pending.lock().await.remove(permission_id) else {
+        let Some(pending) = self.pending.lock().await.remove(permission_id) else {
             return Err(anyhow!(
                 "unknown or already answered permission: {permission_id}"
             ));
         };
-        sender
+        pending
+            .sender
             .send(decision)
             .map_err(|_| anyhow!("permission waiter is no longer active"))
     }
 }
 
 impl PermissionBroker {
-    pub async fn clear_all(&self) {
-        self.pending.lock().await.clear();
+    pub async fn clear_run(&self, run_id: &str) {
+        self.pending
+            .lock()
+            .await
+            .retain(|_, pending| pending.run_id != run_id);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PermissionBroker;
+    use crate::ports::permission::{PermissionDecision, PermissionDecisionPort};
+
+    #[tokio::test]
+    async fn clearing_one_run_keeps_other_run_permission_waiters() {
+        let broker = PermissionBroker::default();
+        let first = broker
+            .create_waiter("run-a".to_string(), "permission-a".to_string())
+            .await;
+        let second = broker
+            .create_waiter("run-b".to_string(), "permission-b".to_string())
+            .await;
+
+        broker.clear_run("run-a").await;
+
+        assert!(first.await.is_err());
+        broker
+            .respond(
+                "permission-b",
+                PermissionDecision {
+                    option_id: "allow".to_string(),
+                },
+            )
+            .await
+            .expect("second run permission should remain active");
+        assert_eq!(second.await.expect("decision").option_id, "allow");
     }
 }
