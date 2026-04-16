@@ -15,6 +15,8 @@
 - [x] ACP permission option 선택과 goal 파일 확장자 처리에 단위 테스트를 추가했다.
 - [x] `cargo check`, `cargo test`, `npm run build`로 현재 구현을 검증했다.
 - [x] permission approve/reject command 실패 시 UI error banner에 오류가 표시되도록 보강했다.
+- [x] 실행 종료/취소 시 pending permission waiter를 정리해 오래 열린 UI 세션에서 stale permission 응답이 남지 않게 했다.
+- [x] 중지 command 실패 시 UI error banner에 오류가 표시되도록 보강했다.
 
 ## Remaining
 
@@ -22,3 +24,4 @@
 - [ ] ACP session cancel을 단순 task abort 외에 agent별 graceful cancellation/close 프로토콜이 확인되면 확장한다.
 - [ ] shadcn/ui CLI 기반 컴포넌트 세트를 도입해 현재 lightweight shared UI를 공식 shadcn 컴포넌트로 치환한다.
 - [ ] 실제 agent별 인증 환경에서 장시간 실행과 permission reject 시나리오를 통합 검증한다.
+- [ ] permission broker를 단일 실행 전역 정리 방식에서 run_id scoped 저장소로 확장한다.

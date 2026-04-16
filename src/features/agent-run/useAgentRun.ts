@@ -86,8 +86,13 @@ export function useAgentRun() {
     if (!state.activeRunId) {
       return;
     }
-    await cancelAgentRun(state.activeRunId);
-    state.setIsRunning(false);
+    try {
+      await cancelAgentRun(state.activeRunId);
+      state.setIsRunning(false);
+      state.setError(null);
+    } catch (err) {
+      state.setError(String(err));
+    }
   }, [state]);
 
   return {

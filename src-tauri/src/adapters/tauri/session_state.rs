@@ -41,17 +41,22 @@ impl AppState {
 
     pub async fn finish_run(&self, run_id: &str) {
         self.runs.lock().await.remove(run_id);
+        self.permissions.clear_all().await;
     }
 
     pub async fn cancel_run(&self, run_id: &str) -> bool {
-        match self.runs.lock().await.remove(run_id) {
+        let cancelled = match self.runs.lock().await.remove(run_id) {
             Some(RunSlot::Running(handle)) => {
                 handle.abort();
                 true
             }
             Some(RunSlot::Reserved) => true,
             None => false,
+        };
+        if cancelled {
+            self.permissions.clear_all().await;
         }
+        cancelled
     }
 }
 
@@ -79,5 +84,11 @@ impl PermissionDecisionPort for PermissionBroker {
         sender
             .send(decision)
             .map_err(|_| anyhow!("permission waiter is no longer active"))
+    }
+}
+
+impl PermissionBroker {
+    pub async fn clear_all(&self) {
+        self.pending.lock().await.clear();
     }
 }
