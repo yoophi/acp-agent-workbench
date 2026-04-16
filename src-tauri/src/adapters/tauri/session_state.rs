@@ -53,12 +53,6 @@ impl AppState {
             None => false,
         }
     }
-
-    pub async fn respond_permission(&self, permission_id: &str, option_id: String) -> Result<()> {
-        self.permissions
-            .respond(permission_id, PermissionDecision { option_id })
-            .await
-    }
 }
 
 #[derive(Clone, Default)]

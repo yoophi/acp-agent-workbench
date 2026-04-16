@@ -9,6 +9,7 @@
 - [x] Tauri command로 실행을 시작하고, ACP 스트리밍 메시지를 Tauri event로 frontend에 전달한다.
 - [x] ACP 메시지를 `assistant/message`, `tool_call/tool_result`, `usage`, `permission`, `error`, `lifecycle` 중심으로 timeline에 정규화해 표시한다.
 - [x] permission 요청에 approve/reject 버튼을 제공하고 Rust backend permission broker로 응답한다.
+- [x] permission 응답 처리를 Tauri command에서 application use case로 분리했다.
 - [x] 새 실행 시 timeline을 초기화하는 기본 정책을 코드에 명시했다.
 - [x] React event listener가 StrictMode에서 중복 등록될 수 있는 경로를 보강했다.
 

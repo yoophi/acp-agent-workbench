@@ -8,7 +8,7 @@ use crate::{
     },
     application::{
         list_agents::ListAgentsUseCase, load_goal_file::LoadGoalFileUseCase,
-        run_agent::RunAgentUseCase,
+        respond_permission::RespondPermissionUseCase, run_agent::RunAgentUseCase,
     },
     domain::{
         agent::AgentDescriptor,
@@ -96,8 +96,8 @@ pub async fn respond_agent_permission(
     permission_id: String,
     option_id: String,
 ) -> Result<(), String> {
-    state
-        .respond_permission(&permission_id, option_id)
+    RespondPermissionUseCase::new(state.permissions())
+        .execute(&permission_id, option_id)
         .await
         .map_err(|err| err.to_string())
 }
