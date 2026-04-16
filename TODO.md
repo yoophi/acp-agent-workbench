@@ -23,8 +23,9 @@
 - [x] ACP stdout/read loop 종료 시 pending JSON-RPC request를 오류로 해제해 비정상 종료 hang을 방지했다.
 - [x] 2026-04-17 현재 구현이 참고 프로젝트의 ACP 실행 흐름과 agent 목록 정책을 따르는지 재확인하고 `cargo check`, `cargo test`, `npm run build`로 검증했다.
 - [x] `RunAgentUseCase`가 ACP adapter 구현체 대신 `AgentRunner` port에만 의존하도록 정리했다.
+- [x] 2026-04-17 현재 참고 프로젝트에 별도 cancel ACP 메서드가 없음을 확인하고, task abort + `kill_on_drop` 기반 중지 구현 상태를 재검증했다.
 
 ## Remaining
 
-- [ ] ACP session cancel을 단순 task abort 외에 agent별 graceful cancellation/close 프로토콜이 확인되면 확장한다.
+- [ ] ACP session cancel을 단순 task abort 외에 agent별 graceful cancellation/close 프로토콜이 확인되면 확장한다. 현재 참고 프로젝트는 완료 후 `session/close`만 사용한다.
 - [ ] 실제 agent별 인증 환경에서 장시간 실행과 permission reject 시나리오를 통합 검증한다.
