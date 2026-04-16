@@ -22,6 +22,7 @@
 - [x] shadcn/ui CLI 기반 Button 컴포넌트와 `cn` 유틸을 도입해 기존 lightweight shared UI 버튼을 치환했다.
 - [x] ACP stdout/read loop 종료 시 pending JSON-RPC request를 오류로 해제해 비정상 종료 hang을 방지했다.
 - [x] 2026-04-17 현재 구현이 참고 프로젝트의 ACP 실행 흐름과 agent 목록 정책을 따르는지 재확인하고 `cargo check`, `cargo test`, `npm run build`로 검증했다.
+- [x] `RunAgentUseCase`가 ACP adapter 구현체 대신 `AgentRunner` port에만 의존하도록 정리했다.
 
 ## Remaining
 

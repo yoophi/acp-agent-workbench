@@ -2,6 +2,7 @@ use tauri::{AppHandle, State};
 
 use crate::{
     adapters::{
+        acp::runner::AcpAgentRunner,
         agent_catalog::ConfigurableAgentCatalog,
         fs::LocalGoalFileReader,
         tauri::{event_sink::TauriRunEventSink, session_state::AppState},
@@ -49,7 +50,8 @@ pub async fn start_agent_run(
         .map_err(|err| err.to_string())?;
 
     let handle = tokio::spawn(async move {
-        let use_case = RunAgentUseCase::new(ConfigurableAgentCatalog::from_env(), permissions);
+        let runner = AcpAgentRunner::new(ConfigurableAgentCatalog::from_env(), permissions);
+        let use_case = RunAgentUseCase::new(runner);
         if let Err(err) = use_case
             .execute_with_run_id(request, run_for_task.id.clone(), sink.clone())
             .await

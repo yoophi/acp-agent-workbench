@@ -1,31 +1,23 @@
 use anyhow::Result;
 
 use crate::{
-    adapters::acp::runner::AcpAgentRunner,
     domain::run::AgentRunRequest,
-    ports::{
-        agent_catalog::AgentCatalog, event_sink::RunEventSink, permission::PermissionDecisionPort,
-        runner::AgentRunner,
-    },
+    ports::{event_sink::RunEventSink, runner::AgentRunner},
 };
 
-pub struct RunAgentUseCase<C, P>
+pub struct RunAgentUseCase<R>
 where
-    C: AgentCatalog,
-    P: PermissionDecisionPort,
+    R: AgentRunner,
 {
-    runner: AcpAgentRunner<C, P>,
+    runner: R,
 }
 
-impl<C, P> RunAgentUseCase<C, P>
+impl<R> RunAgentUseCase<R>
 where
-    C: AgentCatalog,
-    P: PermissionDecisionPort,
+    R: AgentRunner,
 {
-    pub fn new(catalog: C, permissions: P) -> Self {
-        Self {
-            runner: AcpAgentRunner::new(catalog, permissions),
-        }
+    pub fn new(runner: R) -> Self {
+        Self { runner }
     }
 
     pub async fn execute_with_run_id<S>(
