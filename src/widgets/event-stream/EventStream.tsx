@@ -8,9 +8,10 @@ type EventStreamProps = {
   items: TimelineItem[];
   filter: EventGroup | "all";
   onFilterChange: (filter: EventGroup | "all") => void;
+  onError: (message: string | null) => void;
 };
 
-export function EventStream({ items, filter, onFilterChange }: EventStreamProps) {
+export function EventStream({ items, filter, onFilterChange, onError }: EventStreamProps) {
   const endRef = useRef<HTMLDivElement | null>(null);
   const [pendingPermissionIds, setPendingPermissionIds] = useState<Set<string>>(() => new Set());
 
@@ -66,14 +67,14 @@ export function EventStream({ items, filter, onFilterChange }: EventStreamProps)
                 <div className="permission-actions">
                   <button
                     type="button"
-                    onClick={() => respondToPermission(item, "allow", setPendingPermissionIds)}
+                    onClick={() => respondToPermission(item, "allow", setPendingPermissionIds, onError)}
                     disabled={pendingPermissionIds.has(item.event.permissionId) || !findPermissionOption(item, "allow")}
                   >
                     Approve
                   </button>
                   <button
                     type="button"
-                    onClick={() => respondToPermission(item, "reject", setPendingPermissionIds)}
+                    onClick={() => respondToPermission(item, "reject", setPendingPermissionIds, onError)}
                     disabled={pendingPermissionIds.has(item.event.permissionId) || !findPermissionOption(item, "reject")}
                   >
                     Reject
@@ -106,6 +107,7 @@ async function respondToPermission(
   item: TimelineItem,
   mode: "allow" | "reject",
   setPendingPermissionIds: Dispatch<SetStateAction<Set<string>>>,
+  onError: (message: string | null) => void,
 ) {
   if (item.event.type !== "permission" || !item.event.permissionId) {
     return;
@@ -118,12 +120,13 @@ async function respondToPermission(
   setPendingPermissionIds((current) => new Set(current).add(permissionId));
   try {
     await respondAgentPermission(permissionId, option.optionId);
+    onError(null);
   } catch (err) {
     setPendingPermissionIds((current) => {
       const next = new Set(current);
       next.delete(permissionId);
       return next;
     });
-    throw err;
+    onError(String(err));
   }
 }

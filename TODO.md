@@ -14,6 +14,7 @@
 - [x] React event listener가 StrictMode에서 중복 등록될 수 있는 경로를 보강했다.
 - [x] ACP permission option 선택과 goal 파일 확장자 처리에 단위 테스트를 추가했다.
 - [x] `cargo check`, `cargo test`, `npm run build`로 현재 구현을 검증했다.
+- [x] permission approve/reject command 실패 시 UI error banner에 오류가 표시되도록 보강했다.
 
 ## Remaining
 

@@ -38,7 +38,12 @@ export function AgentWorkbenchPage() {
             onCancel={state.cancel}
           />
         </div>
-        <EventStream items={state.visibleItems} filter={state.filter} onFilterChange={state.setFilter} />
+        <EventStream
+          items={state.visibleItems}
+          filter={state.filter}
+          onFilterChange={state.setFilter}
+          onError={state.setError}
+        />
       </div>
     </main>
   );
