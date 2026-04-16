@@ -2,7 +2,7 @@ use tauri::{AppHandle, State};
 
 use crate::{
     adapters::{
-        agent_catalog::StaticAgentCatalog,
+        agent_catalog::ConfigurableAgentCatalog,
         fs::LocalGoalFileReader,
         tauri::{event_sink::TauriRunEventSink, session_state::AppState},
     },
@@ -20,7 +20,7 @@ use crate::{
 
 #[tauri::command]
 pub fn list_agents() -> Vec<AgentDescriptor> {
-    ListAgentsUseCase::new(StaticAgentCatalog).execute()
+    ListAgentsUseCase::new(ConfigurableAgentCatalog::from_env()).execute()
 }
 
 #[tauri::command]
@@ -49,7 +49,7 @@ pub async fn start_agent_run(
         .map_err(|err| err.to_string())?;
 
     let handle = tokio::spawn(async move {
-        let use_case = RunAgentUseCase::new(StaticAgentCatalog, permissions);
+        let use_case = RunAgentUseCase::new(ConfigurableAgentCatalog::from_env(), permissions);
         if let Err(err) = use_case
             .execute_with_run_id(request, run_for_task.id.clone(), sink.clone())
             .await

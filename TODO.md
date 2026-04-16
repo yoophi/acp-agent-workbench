@@ -17,10 +17,10 @@
 - [x] permission approve/reject command 실패 시 UI error banner에 오류가 표시되도록 보강했다.
 - [x] 실행 종료/취소 시 pending permission waiter를 정리해 오래 열린 UI 세션에서 stale permission 응답이 남지 않게 했다.
 - [x] 중지 command 실패 시 UI error banner에 오류가 표시되도록 보강했다.
+- [x] `ACP_AGENT_CATALOG_PATH` JSON 파일 provider와 참고 프로젝트 기본 목록 fallback을 갖춘 agent catalog adapter를 추가했다.
 
 ## Remaining
 
-- [ ] `StaticAgentCatalog`를 설정 파일 또는 provider 기반 adapter로 교체한다.
 - [ ] ACP session cancel을 단순 task abort 외에 agent별 graceful cancellation/close 프로토콜이 확인되면 확장한다.
 - [ ] shadcn/ui CLI 기반 컴포넌트 세트를 도입해 현재 lightweight shared UI를 공식 shadcn 컴포넌트로 치환한다.
 - [ ] 실제 agent별 인증 환경에서 장시간 실행과 permission reject 시나리오를 통합 검증한다.
