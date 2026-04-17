@@ -11,15 +11,14 @@ use crate::{
         tauri::event_sink::TauriRunEventSink,
     },
     application::{
-        list_agents::ListAgentsUseCase, load_goal_file::LoadGoalFileUseCase,
-        respond_permission::RespondPermissionUseCase, start_agent_run::StartAgentRunUseCase,
+        cancel_agent_run::CancelAgentRunUseCase, list_agents::ListAgentsUseCase,
+        load_goal_file::LoadGoalFileUseCase, respond_permission::RespondPermissionUseCase,
+        send_prompt::SendPromptUseCase, start_agent_run::StartAgentRunUseCase,
     },
     domain::{
         agent::AgentDescriptor,
-        events::{LifecycleStatus, RunEvent},
         run::{AgentRun, AgentRunRequest},
     },
-    ports::{event_sink::RunEventSink, session_registry::SessionRegistry},
 };
 
 #[tauri::command]
@@ -63,27 +62,13 @@ pub async fn send_prompt_to_run(
     run_id: String,
     prompt: String,
 ) -> Result<(), String> {
-    let trimmed = prompt.trim();
-    if trimmed.is_empty() {
-        return Err("prompt is empty".into());
-    }
-    let session = state
-        .active_session(&run_id)
-        .await
-        .ok_or_else(|| "agent run is not active".to_string())?;
     let sink = TauriRunEventSink::new(app);
-    let prompt_text = trimmed.to_string();
-    tokio::spawn(async move {
-        if let Err(err) = session.send_prompt(&sink, prompt_text).await {
-            sink.emit(
-                &session.run_id,
-                RunEvent::Error {
-                    message: err.to_string(),
-                },
-            );
-        }
-    });
-    Ok(())
+    let registry = state.inner().clone();
+    SendPromptUseCase::new(registry)
+        .execute(sink, run_id, prompt, |session, sink, text| async move {
+            session.send_prompt(&sink, text).await
+        })
+        .await
 }
 
 #[tauri::command]
@@ -92,18 +77,11 @@ pub async fn cancel_agent_run(
     state: State<'_, AppState>,
     run_id: String,
 ) -> Result<(), String> {
-    let cancelled = state.cancel_run(&run_id).await;
-    TauriRunEventSink::new(app).emit(
-        &run_id,
-        RunEvent::Lifecycle {
-            status: LifecycleStatus::Cancelled,
-            message: if cancelled {
-                "run cancelled".into()
-            } else {
-                "run was already terminated".into()
-            },
-        },
-    );
+    let sink = TauriRunEventSink::new(app);
+    let registry = state.inner().clone();
+    CancelAgentRunUseCase::new(registry)
+        .execute(sink, run_id)
+        .await;
     Ok(())
 }
 
