@@ -68,6 +68,12 @@ npm run tauri:dev -- --print-config
 npm run dev
 ```
 
+## 개발용 컴포넌트 선택 (react-grab)
+
+개발 모드(`npm run dev`, `npm run tauri:dev`)에서는 [`react-grab`](https://react-grab.com)이 자동으로 활성화됩니다. UI 요소에 마우스를 올린 뒤 macOS는 `⌘C`, Windows/Linux는 `Ctrl+C`를 누르면 해당 요소의 파일 경로, React 컴포넌트 이름, HTML 소스가 클립보드에 복사되어 코딩 에이전트에게 바로 붙여 넣을 수 있습니다.
+
+`src/main.tsx`에서 `import.meta.env.DEV`가 `true`일 때만 동적으로 import 하므로 프로덕션 번들에는 포함되지 않습니다.
+
 ## 빌드
 
 ```sh
