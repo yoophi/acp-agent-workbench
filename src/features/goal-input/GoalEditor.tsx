@@ -7,9 +7,10 @@ type GoalEditorProps = {
   value: string;
   onChange: (value: string) => void;
   onError: (value: string | null) => void;
+  readOnly?: boolean;
 };
 
-export function GoalEditor({ value, onChange, onError }: GoalEditorProps) {
+export function GoalEditor({ value, onChange, onError, readOnly = false }: GoalEditorProps) {
   async function handleLoadFile() {
     const selected = await open({
       multiple: false,
@@ -33,7 +34,13 @@ export function GoalEditor({ value, onChange, onError }: GoalEditorProps) {
           <p className="eyebrow">Goal</p>
           <h2 id="goal-heading">Agent task</h2>
         </div>
-        <Button type="button" variant="ghost" icon={<FileUp size={16} />} onClick={handleLoadFile}>
+        <Button
+          type="button"
+          variant="ghost"
+          icon={<FileUp size={16} />}
+          onClick={handleLoadFile}
+          disabled={readOnly}
+        >
           Load file
         </Button>
       </div>
@@ -43,6 +50,7 @@ export function GoalEditor({ value, onChange, onError }: GoalEditorProps) {
         onChange={(event) => onChange(event.target.value)}
         placeholder="Describe the implementation goal for the selected ACP agent."
         spellCheck={false}
+        readOnly={readOnly}
       />
     </section>
   );

@@ -2,14 +2,14 @@ use tauri::{AppHandle, State};
 
 use crate::{
     adapters::{
-        acp::runner::AcpAgentRunner,
+        acp::{client::lifecycle, runner::AcpAgentRunner},
         agent_catalog::ConfigurableAgentCatalog,
         fs::LocalGoalFileReader,
         tauri::{event_sink::TauriRunEventSink, session_state::AppState},
     },
     application::{
         list_agents::ListAgentsUseCase, load_goal_file::LoadGoalFileUseCase,
-        respond_permission::RespondPermissionUseCase, run_agent::RunAgentUseCase,
+        respond_permission::RespondPermissionUseCase,
     },
     domain::{
         agent::AgentDescriptor,
@@ -51,18 +51,97 @@ pub async fn start_agent_run(
 
     let handle = tokio::spawn(async move {
         let runner = AcpAgentRunner::new(ConfigurableAgentCatalog::from_env(), permissions);
-        let use_case = RunAgentUseCase::new(runner);
-        if let Err(err) = use_case
-            .execute_with_run_id(request, run_for_task.id.clone(), sink.clone())
+        let setup = match runner
+            .start_session(&request, run_for_task.id.clone(), sink.clone())
+            .await
+        {
+            Ok(setup) => setup,
+            Err(err) => {
+                sink.emit(
+                    &run_for_task.id,
+                    RunEvent::Error {
+                        message: err.to_string(),
+                    },
+                );
+                state_for_task.finish_run(&run_for_task.id).await;
+                return;
+            }
+        };
+        let session = setup.session;
+        let mut child = setup.child;
+        let read_task = setup.read_task;
+        let stderr_task = setup.stderr_task;
+
+        if let Err(err) = state_for_task
+            .attach_session(&run_for_task.id, session.clone())
             .await
         {
             sink.emit(
                 &run_for_task.id,
-                RunEvent::Error {
+                RunEvent::Diagnostic {
                     message: err.to_string(),
                 },
             );
+            let _ = child.start_kill();
+            let _ = child.wait().await;
+            read_task.abort();
+            if let Some(task) = stderr_task {
+                task.abort();
+            }
+            state_for_task.finish_run(&run_for_task.id).await;
+            return;
         }
+
+        let session_for_prompt = session.clone();
+        let sink_for_prompt = sink.clone();
+        let run_id_for_prompt = run_for_task.id.clone();
+        tokio::spawn(async move {
+            if let Err(err) = session_for_prompt
+                .send_prompt(&sink_for_prompt, request.goal)
+                .await
+            {
+                sink_for_prompt.emit(
+                    &run_id_for_prompt,
+                    RunEvent::Error {
+                        message: err.to_string(),
+                    },
+                );
+            }
+        });
+
+        match child.wait().await {
+            Ok(status) => {
+                if let Some(code) = status.code() {
+                    if code != 0 {
+                        sink.emit(
+                            &run_for_task.id,
+                            RunEvent::Diagnostic {
+                                message: format!("agent process exited with code {code}"),
+                            },
+                        );
+                    }
+                }
+            }
+            Err(err) => {
+                sink.emit(
+                    &run_for_task.id,
+                    RunEvent::Diagnostic {
+                        message: format!("failed to wait for agent process: {err}"),
+                    },
+                );
+            }
+        }
+
+        read_task.abort();
+        let _ = read_task.await;
+        if let Some(task) = stderr_task {
+            task.abort();
+        }
+
+        sink.emit(
+            &run_for_task.id,
+            lifecycle(LifecycleStatus::Completed, "agent exited"),
+        );
         state_for_task.finish_run(&run_for_task.id).await;
     });
     state_handle
@@ -71,6 +150,36 @@ pub async fn start_agent_run(
         .map_err(|err| err.to_string())?;
 
     Ok(run)
+}
+
+#[tauri::command]
+pub async fn send_prompt_to_run(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    run_id: String,
+    prompt: String,
+) -> Result<(), String> {
+    let trimmed = prompt.trim();
+    if trimmed.is_empty() {
+        return Err("prompt is empty".into());
+    }
+    let session = state
+        .active_session(&run_id)
+        .await
+        .ok_or_else(|| "agent run is not active".to_string())?;
+    let sink = TauriRunEventSink::new(app);
+    let prompt_text = trimmed.to_string();
+    tokio::spawn(async move {
+        if let Err(err) = session.send_prompt(&sink, prompt_text).await {
+            sink.emit(
+                &session.run_id,
+                RunEvent::Error {
+                    message: err.to_string(),
+                },
+            );
+        }
+    });
+    Ok(())
 }
 
 #[tauri::command]

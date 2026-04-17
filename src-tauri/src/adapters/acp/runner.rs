@@ -3,14 +3,15 @@ use serde_json::json;
 use std::{fs, path::PathBuf, process::Stdio, sync::Arc};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
-    process::Command,
-    time::{Duration, timeout},
+    process::{Child, Command},
+    sync::Mutex,
+    task::JoinHandle,
 };
 
 use crate::{
     adapters::acp::{
         client::{AcpClient, RpcPeer, lifecycle, read_loop},
-        util::{display_command, expand_tilde, normalize_path, rpc_to_anyhow},
+        util::{RpcError, display_command, expand_tilde, normalize_path, rpc_to_anyhow},
     },
     domain::{
         events::{LifecycleStatus, RunEvent},
@@ -18,13 +19,11 @@ use crate::{
     },
     ports::{
         agent_catalog::AgentCatalog, event_sink::RunEventSink, permission::PermissionDecisionPort,
-        runner::AgentRunner,
     },
 };
 
 const DEFAULT_WORKDIR: &str = "~/tmp/acp-tauri-agent-workspace";
 const DEFAULT_STDIO_BUFFER_LIMIT_MB: usize = 50;
-const AGENT_EXIT_GRACE_PERIOD: Duration = Duration::from_secs(2);
 
 pub struct AcpAgentRunner<C, P>
 where
@@ -46,14 +45,13 @@ where
             permissions,
         }
     }
-}
 
-impl<C, P> AgentRunner for AcpAgentRunner<C, P>
-where
-    C: AgentCatalog,
-    P: PermissionDecisionPort,
-{
-    async fn run<S>(&self, request: AgentRunRequest, run_id: String, sink: S) -> Result<()>
+    pub async fn start_session<S>(
+        &self,
+        request: &AgentRunRequest,
+        run_id: String,
+        sink: S,
+    ) -> Result<AcpSessionSetup>
     where
         S: RunEventSink,
     {
@@ -169,119 +167,153 @@ where
             ),
         );
 
-        let session = peer
-            .request(
-                "session/new",
-                json!({"cwd": workspace.to_string_lossy(), "mcpServers": []}),
-            )
-            .await
-            .map_err(rpc_to_anyhow)?;
-        let session_id = session
-            .get("sessionId")
-            .and_then(serde_json::Value::as_str)
-            .ok_or_else(|| anyhow!("session/new response missing sessionId"))?
-            .to_string();
+        let session_id = create_agent_session(&peer, &workspace).await?;
         sink.emit(
             &run_id,
             lifecycle(LifecycleStatus::SessionCreated, session_id.clone()),
         );
 
+        let session = Arc::new(AcpSession {
+            run_id,
+            session_id: Mutex::new(session_id),
+            workspace,
+            peer,
+            in_flight: Mutex::new(()),
+        });
+
+        Ok(AcpSessionSetup {
+            session,
+            child,
+            read_task,
+            stderr_task,
+        })
+    }
+}
+
+pub struct AcpSessionSetup {
+    pub session: Arc<AcpSession>,
+    pub child: Child,
+    pub read_task: JoinHandle<Result<()>>,
+    pub stderr_task: Option<JoinHandle<()>>,
+}
+
+pub struct AcpSession {
+    pub run_id: String,
+    pub peer: RpcPeer,
+    session_id: Mutex<String>,
+    workspace: PathBuf,
+    in_flight: Mutex<()>,
+}
+
+impl AcpSession {
+    pub async fn session_id(&self) -> String {
+        self.session_id.lock().await.clone()
+    }
+
+    pub async fn send_prompt<S>(&self, sink: &S, text: String) -> Result<String>
+    where
+        S: RunEventSink,
+    {
+        let _guard = self
+            .in_flight
+            .try_lock()
+            .map_err(|_| anyhow!("agent is still responding to the previous prompt"))?;
+
         sink.emit(
-            &run_id,
-            lifecycle(LifecycleStatus::PromptSent, "goal submitted"),
+            &self.run_id,
+            lifecycle(LifecycleStatus::PromptSent, "prompt submitted"),
         );
-        let response = peer
-            .request(
-                "session/prompt",
-                json!({"sessionId": session_id, "prompt": [{"type": "text", "text": request.goal}]}),
-            )
-            .await
-            .map_err(rpc_to_anyhow)?;
-        let stop_reason = response
-            .get("stopReason")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("unknown");
 
-        match peer
-            .request("session/close", json!({"sessionId": session_id}))
-            .await
-        {
-            Ok(_) => {}
-            Err(err) if err.code == -32601 => {
-                sink.emit(
-                    &run_id,
-                    RunEvent::Diagnostic {
-                        message: "session/close is not supported by this agent".into(),
-                    },
-                );
-            }
-            Err(err) => return Err(rpc_to_anyhow(err)),
-        }
-
-        if let Err(err) = peer.shutdown().await {
-            sink.emit(
-                &run_id,
-                RunEvent::Diagnostic {
-                    message: format!("failed to close agent stdin: {err}"),
-                },
-            );
-        }
-        match timeout(AGENT_EXIT_GRACE_PERIOD, child.wait()).await {
-            Ok(Ok(status)) => {
-                if let Some(code) = status.code() {
-                    if code != 0 {
-                        sink.emit(
-                            &run_id,
-                            RunEvent::Diagnostic {
-                                message: format!("agent process exited with {code} after run completion"),
-                            },
-                        );
-                    }
+        let mut reissued = false;
+        let stop_reason = loop {
+            let current_id = self.session_id().await;
+            let outcome = self
+                .peer
+                .request(
+                    "session/prompt",
+                    json!({
+                        "sessionId": current_id,
+                        "prompt": [{"type": "text", "text": text.clone()}],
+                    }),
+                )
+                .await;
+            match outcome {
+                Ok(response) => {
+                    break response
+                        .get("stopReason")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("unknown")
+                        .to_string();
                 }
-            }
-            Ok(Err(err)) => {
-                sink.emit(
-                    &run_id,
-                    RunEvent::Diagnostic {
-                        message: format!("failed to wait for agent process after run completion: {err}"),
-                    },
-                );
-            }
-            Err(_) => {
-                sink.emit(
-                    &run_id,
-                    RunEvent::Diagnostic {
-                        message: "agent process did not exit after run completion; terminating it".into(),
-                    },
-                );
-                if let Err(err) = child.start_kill() {
+                Err(err) if !reissued && is_session_not_found(&err) => {
+                    reissued = true;
                     sink.emit(
-                        &run_id,
+                        &self.run_id,
                         RunEvent::Diagnostic {
-                            message: format!("failed to terminate agent process: {err}"),
+                            message: "agent dropped the previous session; creating a new one"
+                                .into(),
                         },
                     );
-                } else {
-                    let _ = child.wait().await;
+                    let new_id = create_agent_session(&self.peer, &self.workspace).await?;
+                    sink.emit(
+                        &self.run_id,
+                        lifecycle(LifecycleStatus::SessionCreated, new_id.clone()),
+                    );
+                    *self.session_id.lock().await = new_id;
+                    continue;
                 }
+                Err(err) => return Err(rpc_to_anyhow(err)),
             }
-        }
-        read_task.abort();
-        let _ = read_task.await;
-        if let Some(stderr_task) = stderr_task {
-            stderr_task.abort();
-        }
+        };
+
         sink.emit(
-            &run_id,
+            &self.run_id,
             lifecycle(
-                LifecycleStatus::Completed,
+                LifecycleStatus::PromptCompleted,
                 format!("stopReason={stop_reason}"),
             ),
         );
-        Ok(())
+        Ok(stop_reason)
     }
+
 }
 
 fn normalize_workspace(path: &str) -> Result<PathBuf> {
     normalize_path(&expand_tilde(path))
+}
+
+async fn create_agent_session(peer: &RpcPeer, workspace: &PathBuf) -> Result<String> {
+    let response = peer
+        .request(
+            "session/new",
+            json!({"cwd": workspace.to_string_lossy(), "mcpServers": []}),
+        )
+        .await
+        .map_err(rpc_to_anyhow)?;
+    response
+        .get("sessionId")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
+        .ok_or_else(|| anyhow!("session/new response missing sessionId"))
+}
+
+fn is_session_not_found(err: &RpcError) -> bool {
+    const MARKER: &str = "Session not found";
+    if err.message.contains(MARKER) {
+        return true;
+    }
+    let Some(data) = &err.data else {
+        return false;
+    };
+    if let Some(text) = data.as_str() {
+        if text.contains(MARKER) {
+            return true;
+        }
+    }
+    if let Some(details) = data.get("details").and_then(serde_json::Value::as_str) {
+        if details.contains(MARKER) {
+            return true;
+        }
+    }
+    false
 }

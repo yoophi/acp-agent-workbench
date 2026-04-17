@@ -89,11 +89,6 @@ impl RpcPeer {
             .await
     }
 
-    pub async fn shutdown(&self) -> Result<()> {
-        self.writer.lock().await.shutdown().await?;
-        Ok(())
-    }
-
     async fn fail_pending(&self, message: impl Into<String>) {
         let message = message.into();
         let pending = {

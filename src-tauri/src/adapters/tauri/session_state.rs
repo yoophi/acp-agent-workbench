@@ -2,7 +2,10 @@ use anyhow::{Result, anyhow};
 use std::{collections::HashMap, sync::Arc};
 use tokio::{sync::Mutex, task::JoinHandle};
 
-use crate::ports::permission::{PermissionDecision, PermissionDecisionPort};
+use crate::{
+    adapters::acp::runner::AcpSession,
+    ports::permission::{PermissionDecision, PermissionDecisionPort},
+};
 
 #[derive(Clone, Default)]
 pub struct AppState {
@@ -12,7 +15,12 @@ pub struct AppState {
 
 enum RunSlot {
     Reserved,
-    Running(JoinHandle<()>),
+    Running(RunContext),
+}
+
+struct RunContext {
+    join_handle: JoinHandle<()>,
+    session: Option<Arc<AcpSession>>,
 }
 
 impl AppState {
@@ -35,8 +43,30 @@ impl AppState {
             handle.abort();
             return Err(anyhow!("agent run was cancelled before it started"));
         };
-        *slot = RunSlot::Running(handle);
+        *slot = RunSlot::Running(RunContext {
+            join_handle: handle,
+            session: None,
+        });
         Ok(())
+    }
+
+    pub async fn attach_session(&self, run_id: &str, session: Arc<AcpSession>) -> Result<()> {
+        let mut runs = self.runs.lock().await;
+        match runs.get_mut(run_id) {
+            Some(RunSlot::Running(ctx)) => {
+                ctx.session = Some(session);
+                Ok(())
+            }
+            _ => Err(anyhow!("agent run was cancelled before session was attached")),
+        }
+    }
+
+    pub async fn active_session(&self, run_id: &str) -> Option<Arc<AcpSession>> {
+        let runs = self.runs.lock().await;
+        match runs.get(run_id) {
+            Some(RunSlot::Running(ctx)) => ctx.session.clone(),
+            _ => None,
+        }
     }
 
     pub async fn finish_run(&self, run_id: &str) {
@@ -46,8 +76,8 @@ impl AppState {
 
     pub async fn cancel_run(&self, run_id: &str) -> bool {
         let cancelled = match self.runs.lock().await.remove(run_id) {
-            Some(RunSlot::Running(handle)) => {
-                handle.abort();
+            Some(RunSlot::Running(ctx)) => {
+                ctx.join_handle.abort();
                 true
             }
             Some(RunSlot::Reserved) => true,

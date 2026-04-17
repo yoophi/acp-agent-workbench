@@ -1,6 +1,8 @@
 import { GoalEditor } from "../../features/goal-input/GoalEditor";
 import { useAgentRun } from "../../features/agent-run/useAgentRun";
 import { EventStream } from "../../widgets/event-stream/EventStream";
+import { FollowUpComposer } from "../../widgets/follow-up-composer/FollowUpComposer";
+import { FollowUpQueue } from "../../widgets/follow-up-queue/FollowUpQueue";
 import { RunPanel } from "../../widgets/run-panel/RunPanel";
 
 export function AgentWorkbenchPage() {
@@ -18,7 +20,12 @@ export function AgentWorkbenchPage() {
 
       <div className="workspace-grid">
         <div className="left-column">
-          <GoalEditor value={state.goal} onChange={state.setGoal} onError={state.setError} />
+          <GoalEditor
+            value={state.goal}
+            onChange={state.setGoal}
+            onError={state.setError}
+            readOnly={state.sessionActive}
+          />
           <RunPanel
             agents={state.agents}
             selectedAgentId={state.selectedAgentId}
@@ -32,10 +39,26 @@ export function AgentWorkbenchPage() {
             onStdioBufferLimitChange={state.setStdioBufferLimitMb}
             autoAllow={state.autoAllow}
             onAutoAllowChange={state.setAutoAllow}
+            idleTimeoutSec={state.idleTimeoutSec}
+            onIdleTimeoutChange={state.setIdleTimeoutSec}
+            idleRemainingSec={state.idleRemainingSec}
             isRunning={state.isRunning}
             activeRunId={state.activeRunId}
             onRun={state.run}
             onCancel={state.cancel}
+          />
+          <FollowUpComposer
+            value={state.followUpDraft}
+            onChange={state.setFollowUpDraft}
+            onSend={state.send}
+            sessionActive={state.sessionActive}
+            awaitingResponse={state.awaitingResponse}
+            queueLength={state.followUpQueue.length}
+          />
+          <FollowUpQueue
+            items={state.followUpQueue}
+            awaitingResponse={state.awaitingResponse}
+            onCancel={state.cancelFollowUp}
           />
         </div>
         <EventStream

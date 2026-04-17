@@ -15,6 +15,10 @@ export function cancelAgentRun(runId: string) {
   return invoke<void>("cancel_agent_run", { runId });
 }
 
+export function sendPromptToRun(runId: string, prompt: string) {
+  return invoke<void>("send_prompt_to_run", { runId, prompt });
+}
+
 export function loadGoalFile(path: string) {
   return invoke<string>("load_goal_file", { path });
 }

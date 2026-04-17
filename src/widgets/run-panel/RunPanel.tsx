@@ -15,6 +15,9 @@ type RunPanelProps = {
   onStdioBufferLimitChange: (value: number) => void;
   autoAllow: boolean;
   onAutoAllowChange: (value: boolean) => void;
+  idleTimeoutSec: number;
+  onIdleTimeoutChange: (value: number) => void;
+  idleRemainingSec: number | null;
   isRunning: boolean;
   activeRunId: string | null;
   onRun: () => void;
@@ -34,6 +37,9 @@ export function RunPanel({
   onStdioBufferLimitChange,
   autoAllow,
   onAutoAllowChange,
+  idleTimeoutSec,
+  onIdleTimeoutChange,
+  idleRemainingSec,
   isRunning,
   activeRunId,
   onRun,
@@ -85,6 +91,17 @@ export function RunPanel({
         />
       </label>
 
+      <label className="field">
+        <span>Idle timeout (sec, 0 = off)</span>
+        <input
+          type="number"
+          min={0}
+          max={3600}
+          value={idleTimeoutSec}
+          onChange={(event) => onIdleTimeoutChange(Math.max(0, Number(event.target.value) || 0))}
+        />
+      </label>
+
       <label className="toggle-row">
         <input type="checkbox" checked={autoAllow} onChange={(event) => onAutoAllowChange(event.target.checked)} />
         <ShieldCheck size={16} />
@@ -99,6 +116,12 @@ export function RunPanel({
           Stop
         </Button>
       </div>
+
+      {idleRemainingSec !== null ? (
+        <p className="run-idle-hint" role="status">
+          idle {idleRemainingSec} sec. 종료 예정
+        </p>
+      ) : null}
 
       <div className="run-meta">
         <span>Run ID</span>

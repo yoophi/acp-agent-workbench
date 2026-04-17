@@ -265,6 +265,15 @@ button:disabled {
   box-shadow: 0 0 0 5px rgba(47, 128, 98, 0.14);
 }
 
+.run-idle-hint {
+  margin: 0;
+  padding: 0 18px;
+  color: #8a6a2a;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
 .run-meta {
   display: grid;
   gap: 7px;
@@ -280,6 +289,131 @@ button:disabled {
   color: #5c3d2e;
   background: #f8efe8;
   white-space: nowrap;
+}
+
+.follow-up-panel {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 18px;
+  gap: 10px;
+}
+
+.follow-up-panel .hint {
+  color: #7a806f;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.follow-up-textarea {
+  width: calc(100% - 36px);
+  min-height: 110px;
+  margin: 0 18px;
+  resize: vertical;
+  border: 1px solid #d4d1c7;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #22251f;
+  background: #fffdfa;
+  line-height: 1.5;
+  outline: none;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.follow-up-textarea:focus {
+  box-shadow: inset 0 0 0 2px #2f8062;
+}
+
+.follow-up-textarea:disabled {
+  background: #f4f2ec;
+  color: #7a806f;
+}
+
+.follow-up-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 18px;
+}
+
+.follow-up-queue {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 14px;
+}
+
+.follow-up-queue .queue-count {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  background: #eaf3e8;
+  color: #2e594b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 18px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.queue-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e1ddd3;
+  border-radius: 8px;
+  background: #fdfcf7;
+}
+
+.queue-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.queue-index {
+  color: #7a806f;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.queue-text {
+  margin: 0;
+  color: #22251f;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.queue-cancel {
+  border: 0;
+  background: transparent;
+  color: #8a8672;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.queue-cancel:hover {
+  background: #eee9de;
+  color: #b44747;
 }
 
 .stream-panel {

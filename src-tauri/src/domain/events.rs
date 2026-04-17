@@ -69,6 +69,7 @@ pub enum LifecycleStatus {
     Initialized,
     SessionCreated,
     PromptSent,
+    PromptCompleted,
     Cancelled,
     Completed,
 }

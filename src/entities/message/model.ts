@@ -40,7 +40,14 @@ export type RunEvent =
   | { type: "raw"; method: string; payload: unknown }
   | { type: "error"; message: string };
 
-export type LifecycleStatus = "started" | "initialized" | "sessionCreated" | "promptSent" | "completed" | "cancelled";
+export type LifecycleStatus =
+  | "started"
+  | "initialized"
+  | "sessionCreated"
+  | "promptSent"
+  | "promptCompleted"
+  | "completed"
+  | "cancelled";
 
 export type PlanEntry = {
   status: string;

@@ -5,7 +5,8 @@ mod ports;
 
 use adapters::tauri::{
     commands::{
-        cancel_agent_run, list_agents, load_goal_file, respond_agent_permission, start_agent_run,
+        cancel_agent_run, list_agents, load_goal_file, respond_agent_permission, send_prompt_to_run,
+        start_agent_run,
     },
     session_state::AppState,
 };
@@ -18,6 +19,7 @@ pub fn run() {
             list_agents,
             load_goal_file,
             start_agent_run,
+            send_prompt_to_run,
             cancel_agent_run,
             respond_agent_permission
         ])

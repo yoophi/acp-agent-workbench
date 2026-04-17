@@ -1,4 +1,5 @@
 import type { EventGroup, RunEvent, TimelineItem } from "./model";
+import { stripAnsi } from "../../shared/lib/ansi";
 
 export function toTimelineItem(runId: string, event: RunEvent): TimelineItem {
   const createdAt = Date.now();
@@ -8,7 +9,14 @@ export function toTimelineItem(runId: string, event: RunEvent): TimelineItem {
     createdAt,
     event,
   };
+  const item = buildItem(base, event);
+  return { ...item, body: stripAnsi(item.body) };
+}
 
+function buildItem(
+  base: Pick<TimelineItem, "id" | "runId" | "createdAt" | "event">,
+  event: RunEvent,
+): TimelineItem {
   switch (event.type) {
     case "agentMessage":
       return { ...base, group: "assistant/message", title: "assistant/message", body: event.text };
@@ -68,7 +76,12 @@ export function toTimelineItem(runId: string, event: RunEvent): TimelineItem {
         group: "lifecycle",
         title: event.status,
         body: event.message,
-        tone: event.status === "completed" ? "success" : event.status === "cancelled" ? "warning" : "info",
+        tone:
+          event.status === "completed" || event.status === "promptCompleted"
+            ? "success"
+            : event.status === "cancelled"
+              ? "warning"
+              : "info",
       };
     case "raw":
       return {
