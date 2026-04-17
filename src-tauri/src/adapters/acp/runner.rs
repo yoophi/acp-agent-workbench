@@ -4,6 +4,7 @@ use std::{fs, path::PathBuf, process::Stdio, sync::Arc};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Command,
+    time::{Duration, timeout},
 };
 
 use crate::{
@@ -23,6 +24,7 @@ use crate::{
 
 const DEFAULT_WORKDIR: &str = "~/tmp/acp-tauri-agent-workspace";
 const DEFAULT_STDIO_BUFFER_LIMIT_MB: usize = 50;
+const AGENT_EXIT_GRACE_PERIOD: Duration = Duration::from_secs(2);
 
 pub struct AcpAgentRunner<C, P>
 where
@@ -216,17 +218,58 @@ where
             Err(err) => return Err(rpc_to_anyhow(err)),
         }
 
+        if let Err(err) = peer.shutdown().await {
+            sink.emit(
+                &run_id,
+                RunEvent::Diagnostic {
+                    message: format!("failed to close agent stdin: {err}"),
+                },
+            );
+        }
+        match timeout(AGENT_EXIT_GRACE_PERIOD, child.wait()).await {
+            Ok(Ok(status)) => {
+                if let Some(code) = status.code() {
+                    if code != 0 {
+                        sink.emit(
+                            &run_id,
+                            RunEvent::Diagnostic {
+                                message: format!("agent process exited with {code} after run completion"),
+                            },
+                        );
+                    }
+                }
+            }
+            Ok(Err(err)) => {
+                sink.emit(
+                    &run_id,
+                    RunEvent::Diagnostic {
+                        message: format!("failed to wait for agent process after run completion: {err}"),
+                    },
+                );
+            }
+            Err(_) => {
+                sink.emit(
+                    &run_id,
+                    RunEvent::Diagnostic {
+                        message: "agent process did not exit after run completion; terminating it".into(),
+                    },
+                );
+                if let Err(err) = child.start_kill() {
+                    sink.emit(
+                        &run_id,
+                        RunEvent::Diagnostic {
+                            message: format!("failed to terminate agent process: {err}"),
+                        },
+                    );
+                } else {
+                    let _ = child.wait().await;
+                }
+            }
+        }
         read_task.abort();
         let _ = read_task.await;
-        peer.shutdown().await?;
-        let status = child.wait().await?;
         if let Some(stderr_task) = stderr_task {
             stderr_task.abort();
-        }
-        if let Some(code) = status.code() {
-            if code != 0 {
-                bail!("agent process exited with {code}");
-            }
         }
         sink.emit(
             &run_id,
