@@ -5,7 +5,8 @@ use crate::{
         acp::{client::lifecycle, runner::AcpAgentRunner},
         agent_catalog::ConfigurableAgentCatalog,
         fs::LocalGoalFileReader,
-        tauri::{event_sink::TauriRunEventSink, session_state::AppState},
+        session_registry::AppState,
+        tauri::event_sink::TauriRunEventSink,
     },
     application::{
         list_agents::ListAgentsUseCase, load_goal_file::LoadGoalFileUseCase,
@@ -16,7 +17,7 @@ use crate::{
         events::{LifecycleStatus, RunEvent},
         run::{AgentRun, AgentRunRequest},
     },
-    ports::event_sink::RunEventSink,
+    ports::{event_sink::RunEventSink, session_registry::SessionRegistry},
 };
 
 #[tauri::command]
