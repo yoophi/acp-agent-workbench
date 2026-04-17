@@ -73,6 +73,7 @@ mod tests {
     use tokio::sync::{Mutex, Notify};
     use tokio::task::JoinHandle;
 
+    #[allow(dead_code)]
     enum FakeBehavior {
         Ok,
         Err,

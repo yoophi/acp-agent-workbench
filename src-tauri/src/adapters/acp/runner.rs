@@ -10,7 +10,8 @@ use tokio::{
 
 use crate::{
     adapters::acp::{
-        client::{AcpClient, RpcPeer, lifecycle, read_loop},
+        client::{AcpClient, lifecycle},
+        transport::{RpcPeer, read_loop},
         util::{RpcError, display_command, expand_tilde, normalize_path, rpc_to_anyhow},
     },
     application::start_agent_run::{
