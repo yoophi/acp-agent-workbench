@@ -1,6 +1,9 @@
 import { useCallback } from "react";
 import { cancelAgentRun } from "../../shared/api/tauri";
 import { useWorkbenchStore, type TabState } from "../../features/agent-run/model";
+import { cn } from "../../shared/lib/utils";
+import { Badge } from "../../shared/ui/Badge";
+import { Button } from "../../shared/ui/Button";
 
 const CLOSE_FALLBACK_MS = 5000;
 
@@ -42,6 +45,23 @@ function tabDisplayTitle(tab: TabState) {
   if (tab.title && tab.title.trim().length > 0) return tab.title;
   const goalPreview = tab.goal.trim().split(/\s+/).slice(0, 5).join(" ");
   return goalPreview || "빈 탭";
+}
+
+function statusClassName(status: TabStatus) {
+  switch (status) {
+    case "running":
+      return "bg-primary";
+    case "awaiting":
+      return "animate-pulse bg-info";
+    case "error":
+      return "bg-destructive";
+    case "idle-countdown":
+      return "bg-warning";
+    case "closing":
+      return "animate-pulse bg-muted-foreground";
+    default:
+      return "bg-muted-foreground/50";
+  }
 }
 
 export function TabBar() {
@@ -89,7 +109,10 @@ export function TabBar() {
   }, []);
 
   return (
-    <div className="tab-bar" role="tablist">
+    <div
+      className="mb-4 flex items-center gap-1.5 overflow-x-auto rounded-lg border bg-card/80 p-1 shadow-sm"
+      role="tablist"
+    >
       {tabs.map((tab) => {
         const status = resolveStatus(tab);
         const isActive = tab.id === activeTabId;
@@ -98,28 +121,37 @@ export function TabBar() {
             key={tab.id}
             role="tab"
             aria-selected={isActive}
-            className={`tab-item ${isActive ? "tab-item--active" : ""}`}
+            className={cn(
+              "flex max-w-[220px] cursor-pointer select-none items-center gap-2 whitespace-nowrap rounded-md border border-transparent px-2.5 py-1.5 text-sm transition-colors",
+              isActive
+                ? "border-border bg-background shadow-sm"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+            )}
             onClick={() => handleActivate(tab.id)}
           >
             <span
-              className={`tab-status tab-status--${status}`}
+              className={cn("h-2 w-2 shrink-0 rounded-full", statusClassName(status))}
               title={statusLabel(status)}
               aria-label={statusLabel(status)}
             />
-            <span className="tab-title">{tabDisplayTitle(tab)}</span>
+            <span className="min-w-0 flex-1 overflow-hidden text-ellipsis">
+              {tabDisplayTitle(tab)}
+            </span>
             {tab.permissionPending ? (
-              <span className="tab-permission" title="권한 요청 대기">
-                ⚠
-              </span>
+              <Badge variant="secondary" title="권한 요청 대기">
+                권한
+              </Badge>
             ) : null}
             {!isActive && tab.unreadCount > 0 ? (
-              <span className="tab-unread" aria-label={`${tab.unreadCount}개 새 이벤트`}>
+              <Badge aria-label={`${tab.unreadCount}개 새 이벤트`}>
                 {tab.unreadCount > 99 ? "99+" : tab.unreadCount}
-              </span>
+              </Badge>
             ) : null}
-            <button
+            <Button
               type="button"
-              className="tab-close"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
               aria-label={
                 tab.closing && tab.error
                   ? "강제 닫기"
@@ -139,13 +171,13 @@ export function TabBar() {
               }
             >
               {tab.closing && tab.error ? "!" : tab.closing ? "…" : "×"}
-            </button>
+            </Button>
           </div>
         );
       })}
-      <button type="button" className="tab-add" onClick={handleAdd} aria-label="새 탭">
+      <Button type="button" variant="outline" size="icon" onClick={handleAdd} aria-label="새 탭">
         +
-      </button>
+      </Button>
     </div>
   );
 }

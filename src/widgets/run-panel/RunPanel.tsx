@@ -65,7 +65,7 @@ export function RunPanel({
         />
       </CardHeader>
 
-      <CardContent className="grid gap-4 pt-6">
+      <CardContent className="grid gap-4">
         <label className="grid gap-2">
           <span className="text-sm font-medium">Agent</span>
           <NativeSelect value={selectedAgentId} onChange={(event) => onSelectAgent(event.target.value)}>
