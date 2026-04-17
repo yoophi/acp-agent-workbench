@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum StartAgentRunError {
     ReserveRun(String),
     AttachRunHandle(String),
@@ -20,7 +20,7 @@ impl From<StartAgentRunError> for String {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum SendPromptError {
     EmptyPrompt,
     RunNotActive,
