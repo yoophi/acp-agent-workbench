@@ -48,10 +48,18 @@ npm run tauri:dev
 
 `npm run tauri:dev`는 `1420`부터 사용 가능한 포트를 찾아 Tauri의 `devUrl`과 Vite 개발 서버 포트를 함께 설정합니다. 따라서 이미 개발용 앱이 떠 있어도 다른 포트로 추가 인스턴스를 실행할 수 있습니다.
 
+여러 개발용 앱을 동시에 실행할 때는 `npm run tauri dev` 대신 `npm run tauri:dev`를 사용해야 합니다. 기존 `npm run tauri dev`는 `src-tauri/tauri.conf.json`의 고정 `1420` 포트를 그대로 사용합니다.
+
 특정 시작 포트를 지정하려면 다음처럼 실행합니다.
 
 ```sh
 TAURI_DEV_PORT=1430 npm run tauri:dev
+```
+
+실제 앱을 띄우지 않고 선택될 Tauri dev 설정만 확인하려면 다음 명령을 사용할 수 있습니다.
+
+```sh
+npm run tauri:dev -- --print-config
 ```
 
 프론트엔드만 실행하려면 다음 명령을 사용할 수 있습니다.

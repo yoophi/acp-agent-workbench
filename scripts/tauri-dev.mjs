@@ -84,8 +84,9 @@ if (printConfig) {
 
 console.log(`Starting Tauri dev app at ${config.build.devUrl}`);
 
+const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const child = spawn(
-  "npm",
+  npmCommand,
   ["run", "tauri", "--", "dev", "--config", JSON.stringify(config), ...tauriArgs],
   {
     stdio: "inherit",
