@@ -1,5 +1,12 @@
 import { useCallback } from "react";
-import { closeWorkbenchTab, useWorkbenchStore, type TabState } from "../../features/agent-run";
+import {
+  activateWorkbenchTab,
+  closeWorkbenchTab,
+  createWorkbenchTab,
+  useActiveTabId,
+  useTabList,
+  type WorkbenchTabListItem,
+} from "../../features/agent-run";
 import { cn } from "../../shared/lib";
 import { Badge, Button } from "../../shared/ui";
 
@@ -11,7 +18,7 @@ type TabStatus =
   | "idle-countdown"
   | "closing";
 
-function resolveStatus(tab: TabState): TabStatus {
+function resolveStatus(tab: WorkbenchTabListItem): TabStatus {
   if (tab.closing) return "closing";
   if (tab.error) return "error";
   if (!tab.sessionActive) return "idle";
@@ -37,7 +44,7 @@ function statusLabel(status: TabStatus) {
   }
 }
 
-function tabDisplayTitle(tab: TabState) {
+function tabDisplayTitle(tab: WorkbenchTabListItem) {
   if (tab.title && tab.title.trim().length > 0) return tab.title;
   const goalPreview = tab.goal.trim().split(/\s+/).slice(0, 5).join(" ");
   return goalPreview || "빈 탭";
@@ -61,15 +68,15 @@ function statusClassName(status: TabStatus) {
 }
 
 export function TabBar() {
-  const tabs = useWorkbenchStore((state) => state.tabs);
-  const activeTabId = useWorkbenchStore((state) => state.activeTabId);
+  const tabs = useTabList();
+  const activeTabId = useActiveTabId();
 
   const handleActivate = useCallback((tabId: string) => {
-    useWorkbenchStore.getState().activateTab(tabId);
+    activateWorkbenchTab(tabId);
   }, []);
 
   const handleAdd = useCallback(() => {
-    useWorkbenchStore.getState().addTab();
+    createWorkbenchTab();
   }, []);
 
   const handleClose = useCallback((tabId: string) => {
