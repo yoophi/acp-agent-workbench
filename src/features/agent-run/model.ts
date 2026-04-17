@@ -125,7 +125,10 @@ export const useAgentRunStore = create<AgentRunState>((set, get) => ({
   appendItem: (item) =>
     set((state) => {
       const previous = state.items[state.items.length - 1];
-      if (previous?.event.type === "agentMessage" && item.event.type === "agentMessage") {
+      if (
+        (previous?.event.type === "agentMessage" && item.event.type === "agentMessage") ||
+        (previous?.event.type === "thought" && item.event.type === "thought")
+      ) {
         const mergedText = `${previous.event.text}${item.event.text}`;
         return {
           items: [

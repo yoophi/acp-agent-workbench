@@ -64,7 +64,7 @@ export function EventStream({ items, filter, onFilterChange, onError }: EventStr
                 <span>{item.group}</span>
                 <strong>{item.title}</strong>
               </div>
-              {item.group === "assistant/message" ? <StreamingMarkdown content={item.body} /> : <pre>{item.body}</pre>}
+              {isMarkdownStream(item) ? <StreamingMarkdown content={item.body} /> : <pre>{item.body}</pre>}
               {item.event.type === "permission" && item.event.requiresResponse && item.event.permissionId ? (
                 <div className="permission-actions">
                   <button
@@ -90,6 +90,10 @@ export function EventStream({ items, filter, onFilterChange, onError }: EventStr
       </div>
     </section>
   );
+}
+
+function isMarkdownStream(item: TimelineItem) {
+  return item.group === "assistant/message" || item.group === "thought";
 }
 
 function StreamingMarkdown({ content }: { content: string }) {
