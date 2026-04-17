@@ -271,14 +271,28 @@ flowchart LR
 
 ## 7. 위험 및 미결 사항
 
-- **자원 사용량**: 동시 run이 증가하면 tokio task, 에이전트 subprocess, stdio 버퍼, 타임라인 items 메모리가 비례해 증가. 상한을 명시적으로 걸거나 경고 UI가 필요할 수 있다.
-- **타임라인 무한 누적**: 비활성 탭도 계속 이벤트를 받으므로 장시간 세션에서 items 배열이 커진다. `items.slice(-MAX)` 같은 ring buffer 또는 filter-based compaction 고려.
-- **권한 요청 UX**: 두 탭이 동시에 permission 요청 대기 상태가 되면 사용자는 비활성 탭의 요청을 놓칠 수 있다 → 탭에 "⚠️ permission pending" 표식 필요.
-- **탭 닫기 취소 경합**: 탭을 닫는 순간 `cancelAgentRun`과 에이전트의 자연 종료가 경합할 수 있다. 이미 `cancel_run` 내부에서 task abort만 하므로 이중 호출은 idempotent 하지만, 이벤트 emit 타이밍은 확인 필요.
-- **이벤트 라우터 hot reload**: Vite HMR 시 리스너 중복 설치 방지를 위해 `installRunEventRouter`가 기존 리스너를 해제하도록 해야 한다.
-- **Run ID 충돌**: 현재 `AgentRun::new`가 UUID를 생성하므로 실질적 위험 없음. 그래도 `reserve_run`에서 중복 체크 유지.
-- **백엔드 ↔ 프런트 탭 매핑 불일치**: 프런트가 탭을 닫는 동안 이벤트가 도착하면 라우터가 해당 runId의 탭을 찾지 못할 수 있다. "고아 이벤트"는 조용히 drop하되 dev 모드에서 경고 로그 남기는 정도가 적절.
-- **단일 창 vs 멀티 창**: 향후 Tauri 멀티 윈도우 요구가 들어오면 각 윈도우가 자체 `WorkbenchStore`를 가져야 한다. 현재 단계에서는 단일 윈도우 멀티 탭만 범위로 한정.
+### 7.1 리스크 요약
+
+| # | 항목 | 심각도 | 영향 | 완화 방안 |
+| --- | --- | --- | --- | --- |
+| R1 | 자원 사용량 증가 | High | 탭 수 비례로 subprocess / tokio task / stdio 버퍼 / 메모리 팽창 | `ACP_WORKBENCH_MAX_RUNS` 상한, 실행 중 탭 수 표기, 동시 실행 불가 시 친절한 에러 |
+| R2 | 타임라인 무한 누적 | High | 장시간 세션에서 `items` 배열이 수만 건 → 렌더 지연, 메모리 스파이크 | ring buffer(`items.slice(-MAX)`), 그룹별 compaction, 가상 스크롤 |
+| R3 | 비활성 탭 permission 누락 | High | 사용자가 대기 중인 approval을 못 봐서 run이 멈춤 | 탭 헤더에 `⚠️ permission pending` 배지, 시스템 알림 옵션 |
+| R4 | 고아 이벤트 | Medium | 탭을 닫는 찰나에 도착한 envelope의 runId가 매칭 탭 없음 | 조용히 drop, dev 모드에서만 경고 로그. 라우터에 `knownRunIds` 캐시로 검증 |
+| R5 | Vite HMR 리스너 중복 | Medium | 핫 리로드마다 listener 누적 → 이벤트가 N배로 처리됨 | `installRunEventRouter`가 이전 dispose 핸들을 해제하도록 강제. `import.meta.hot` 정리 훅 |
+| R6 | 탭 닫기 vs 자연 종료 경합 | Low | `cancelAgentRun`과 에이전트 exit이 동시 발생 | `cancel_run`은 task abort만 하므로 idempotent. emit 타이밍 확인만 |
+| R7 | 이벤트 라우팅 오배송 | Medium | 라우팅 버그로 탭 A의 permission/스트림이 탭 B에 섞임 | `envelope.runId === tab.activeRunId` 엄격 비교, 탭 전환 시 activeRunId 초기화 테스트 |
+| R8 | 설정 영속화 크래시 복구 | Low | 탭 레이아웃 저장 중 앱 크래시 시 다음 기동에 상태 소실 / 손상 | write-through + atomic rename. 로드 실패 시 빈 탭 1개로 fallback |
+| R9 | 멀티 윈도우 확장 시 재설계 | Low | Tauri 멀티 윈도우 요구가 오면 `WorkbenchStore`를 윈도우 단위로 분리해야 함 | 본 단계에서는 단일 창 멀티 탭으로 범위 고정. 추후 per-window store factory |
+| R10 | Run ID 충돌 | Low | UUID 기반이라 실질 위험 없음 | `reserve_run`에서 중복 체크 유지 |
+| R11 | verbose 에이전트 로그 | Low | Claude Code 등 verbose stderr가 타임라인 성능 저하 유발 | per-group 필터 기본값, 라인당 길이 제한 |
+
+### 7.2 미결 사항
+
+- 동시 실행 상한을 하드코딩할지 설정 가능하게 둘지 (환경변수 vs 설정 UI)
+- 탭 닫기 시 확인 다이얼로그 표시 조건 (sessionActive 일 때만 / 항상 / 안 함)
+- 탭 설정 영속화를 localStorage vs Tauri FS vs SQLite 중 어디에 둘지
+- 시스템 알림(OS notification) 지원 범위 — permission pending 시에만 / run 완료 시에도
 
 ## 8. 후속 개선 아이디어 (본 문서 범위 밖)
 
