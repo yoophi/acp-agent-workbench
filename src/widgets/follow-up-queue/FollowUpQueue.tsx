@@ -1,5 +1,8 @@
 import { X } from "lucide-react";
 import type { FollowUpQueueItem } from "../../features/agent-run/model";
+import { Badge } from "../../shared/ui/Badge";
+import { Button } from "../../shared/ui/Button";
+import { Card, CardContent, CardHeader, CardTitle, CardTitleBlock } from "../../shared/ui/Card";
 
 type FollowUpQueueProps = {
   items: FollowUpQueueItem[];
@@ -13,37 +16,43 @@ export function FollowUpQueue({ items, awaitingResponse, onCancel }: FollowUpQue
   }
 
   return (
-    <section className="panel follow-up-queue" aria-labelledby="follow-up-queue-heading">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">Queue</p>
-          <h2 id="follow-up-queue-heading">Pending follow-ups</h2>
-        </div>
-        <span className="queue-count" aria-label={`${items.length} queued`}>
+    <Card as="section" aria-labelledby="follow-up-queue-heading">
+      <CardHeader>
+        <CardTitleBlock>
+          <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Queue</p>
+          <CardTitle id="follow-up-queue-heading">Pending follow-ups</CardTitle>
+        </CardTitleBlock>
+        <Badge variant="secondary" aria-label={`${items.length} queued`}>
           {items.length}
-        </span>
-      </div>
-      <ul className="queue-list">
-        {items.map((item, index) => (
-          <li key={item.id} className="queue-item">
-            <div className="queue-body">
-              <span className="queue-index">
-                {index + 1}
-                {index === 0 && awaitingResponse ? " · next" : ""}
-              </span>
-              <p className="queue-text">{item.text}</p>
-            </div>
-            <button
-              type="button"
-              className="queue-cancel"
-              aria-label="Remove from queue"
-              onClick={() => onCancel(item.id)}
-            >
-              <X size={14} />
-            </button>
-          </li>
-        ))}
-      </ul>
-    </section>
+        </Badge>
+      </CardHeader>
+      <CardContent className="pt-6">
+        <ul className="m-0 flex list-none flex-col gap-2 p-0">
+          {items.map((item, index) => (
+            <li key={item.id} className="flex items-start gap-3 rounded-lg border bg-muted/30 p-3">
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {index + 1}
+                  {index === 0 && awaitingResponse ? " · next" : ""}
+                </span>
+                <p className="m-0 whitespace-pre-wrap break-words text-sm leading-6">
+                  {item.text}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                aria-label="Remove from queue"
+                onClick={() => onCancel(item.id)}
+              >
+                <X size={14} />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
