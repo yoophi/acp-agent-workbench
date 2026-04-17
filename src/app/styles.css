@@ -102,9 +102,10 @@ button:disabled {
 
 .left-column {
   display: grid;
-  grid-template-rows: minmax(360px, 1fr) auto;
+  grid-template-rows: minmax(220px, 1fr) auto;
   gap: 18px;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .panel {
@@ -132,7 +133,7 @@ button:disabled {
 .goal-textarea {
   flex: 1;
   width: 100%;
-  min-height: 300px;
+  min-height: 200px;
   resize: none;
   border: 0;
   border-radius: 0 0 8px 8px;
