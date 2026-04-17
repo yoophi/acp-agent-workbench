@@ -2,6 +2,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { FileUp } from "lucide-react";
 import { loadGoalFile } from "../../shared/api/tauri";
 import { Button } from "../../shared/ui/Button";
+import { Card, CardHeader, CardTitle, CardTitleBlock } from "../../shared/ui/Card";
+import { Textarea } from "../../shared/ui/Textarea";
 
 type GoalEditorProps = {
   value: string;
@@ -28,12 +30,12 @@ export function GoalEditor({ value, onChange, onError, readOnly = false }: GoalE
   }
 
   return (
-    <section className="panel goal-panel" aria-labelledby="goal-heading">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">Goal</p>
-          <h2 id="goal-heading">Agent task</h2>
-        </div>
+    <Card as="section" className="flex min-h-0 flex-col" aria-labelledby="goal-heading">
+      <CardHeader>
+        <CardTitleBlock>
+          <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Goal</p>
+          <CardTitle id="goal-heading">Agent task</CardTitle>
+        </CardTitleBlock>
         <Button
           type="button"
           variant="ghost"
@@ -43,15 +45,15 @@ export function GoalEditor({ value, onChange, onError, readOnly = false }: GoalE
         >
           Load file
         </Button>
-      </div>
-      <textarea
-        className="goal-textarea"
+      </CardHeader>
+      <Textarea
+        className="min-h-[200px] flex-1 resize-none rounded-none border-0 p-6 text-base leading-7 shadow-none focus-visible:ring-0"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder="Describe the implementation goal for the selected ACP agent."
         spellCheck={false}
         readOnly={readOnly}
       />
-    </section>
+    </Card>
   );
 }

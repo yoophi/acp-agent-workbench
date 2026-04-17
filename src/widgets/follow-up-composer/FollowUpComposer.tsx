@@ -1,6 +1,8 @@
 import { Send } from "lucide-react";
 import type { KeyboardEvent } from "react";
 import { Button } from "../../shared/ui/Button";
+import { Card, CardContent, CardHeader, CardTitle, CardTitleBlock } from "../../shared/ui/Card";
+import { Textarea } from "../../shared/ui/Textarea";
 
 type FollowUpComposerProps = {
   value: string;
@@ -34,32 +36,33 @@ export function FollowUpComposer({
       : "Send an additional instruction to the running agent."
     : "Start a run to send follow-up prompts.";
 
-  const sendLabel =
-    awaitingResponse || queueLength > 0 ? "Queue" : "Send";
+  const sendLabel = awaitingResponse || queueLength > 0 ? "Queue" : "Send";
 
   return (
-    <section className="panel follow-up-panel" aria-labelledby="follow-up-heading">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">Follow-up</p>
-          <h2 id="follow-up-heading">Ask more</h2>
+    <Card as="section" aria-labelledby="follow-up-heading">
+      <CardHeader>
+        <CardTitleBlock>
+          <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Follow-up</p>
+          <CardTitle id="follow-up-heading">Ask more</CardTitle>
+        </CardTitleBlock>
+        <span className="text-xs font-medium text-muted-foreground">⌘/Ctrl + Enter</span>
+      </CardHeader>
+      <CardContent className="grid gap-3 pt-6">
+        <Textarea
+          className="min-h-[110px] resize-y"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          disabled={!sessionActive}
+          spellCheck={false}
+        />
+        <div className="flex justify-end">
+          <Button type="button" variant="primary" icon={<Send size={16} />} disabled={!canSubmit} onClick={onSend}>
+            {sendLabel}
+          </Button>
         </div>
-        <span className="hint">⌘/Ctrl + Enter</span>
-      </div>
-      <textarea
-        className="follow-up-textarea"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        disabled={!sessionActive}
-        spellCheck={false}
-      />
-      <div className="follow-up-actions">
-        <Button type="button" variant="primary" icon={<Send size={16} />} disabled={!canSubmit} onClick={onSend}>
-          {sendLabel}
-        </Button>
-      </div>
-    </section>
+      </CardContent>
+    </Card>
   );
 }
