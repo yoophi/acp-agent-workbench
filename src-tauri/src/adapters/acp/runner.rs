@@ -14,16 +14,16 @@ use crate::{
         transport::{RpcPeer, read_loop},
         util::{RpcError, display_command, expand_tilde, normalize_path, rpc_to_anyhow},
     },
-    application::start_agent_run::{
-        AbortFuture, DriverFuture, LaunchedSession, RunCommander,
-    },
     domain::{
         events::{LifecycleStatus, RunEvent},
         run::AgentRunRequest,
     },
     ports::{
-        agent_catalog::AgentCatalog, event_sink::RunEventSink, permission::PermissionDecisionPort,
+        agent_catalog::AgentCatalog,
+        event_sink::RunEventSink,
+        permission::PermissionDecisionPort,
         session_handle::SessionHandle,
+        session_launcher::{AbortFuture, DriverFuture, LaunchedSession, RunCommander, SessionLauncher},
     },
 };
 
@@ -202,41 +202,47 @@ pub struct AcpSessionSetup {
     pub stderr_task: Option<JoinHandle<()>>,
 }
 
-pub async fn launch_agent_run<C, P, S>(
-    runner: Arc<AcpAgentRunner<C, P>>,
-    request: AgentRunRequest,
-    run_id: String,
-    sink: S,
-) -> Result<LaunchedSession<AcpSession>>
+impl<C, P> SessionLauncher for AcpAgentRunner<C, P>
 where
     C: AgentCatalog,
     P: PermissionDecisionPort,
-    S: RunEventSink,
 {
-    let setup = runner
-        .start_session(&request, run_id.clone(), sink.clone())
-        .await?;
-    let AcpSessionSetup {
-        session,
-        child,
-        read_task,
-        stderr_task,
-    } = setup;
+    type Session = AcpSession;
 
-    let commander = AcpRunCommander {
-        child,
-        read_task,
-        stderr_task,
-        session: session.clone(),
-        sink,
-        run_id,
-        initial_goal: request.goal,
-    };
+    async fn launch<S>(
+        self,
+        request: AgentRunRequest,
+        run_id: String,
+        sink: S,
+    ) -> Result<LaunchedSession<AcpSession>>
+    where
+        S: RunEventSink,
+    {
+        let setup = self
+            .start_session(&request, run_id.clone(), sink.clone())
+            .await?;
+        let AcpSessionSetup {
+            session,
+            child,
+            read_task,
+            stderr_task,
+        } = setup;
 
-    Ok(LaunchedSession {
-        session,
-        commander: Box::new(commander),
-    })
+        let commander = AcpRunCommander {
+            child,
+            read_task,
+            stderr_task,
+            session: session.clone(),
+            sink,
+            run_id,
+            initial_goal: request.goal,
+        };
+
+        Ok(LaunchedSession {
+            session,
+            commander: Box::new(commander),
+        })
+    }
 }
 
 struct AcpRunCommander<S>

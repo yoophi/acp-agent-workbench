@@ -1,50 +1,21 @@
-use std::{future::Future, pin::Pin, sync::Arc};
-
-use anyhow::Result;
-
 use crate::{
     domain::{
         events::RunEvent,
         run::{AgentRun, AgentRunRequest},
     },
-    ports::{event_sink::RunEventSink, session_registry::SessionRegistry},
+    ports::{
+        event_sink::RunEventSink,
+        session_launcher::{LaunchedSession, SessionLauncher},
+        session_registry::SessionRegistry,
+    },
 };
-
-/// Future that drives a launched session to its natural completion
-/// (initial prompt submission, process wait, stream cleanup, terminal
-/// lifecycle event).
-pub type DriverFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
-
-/// Future that tears a launched session down without running it to
-/// completion (used when the orchestrator decides to stop the run
-/// before the driver is awaited).
-pub type AbortFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
-
-/// Adapter-facing controller over a freshly launched agent session.
-///
-/// Exactly one of `run_to_completion` or `abort` is awaited per run,
-/// and both consume the commander by value.
-pub trait RunCommander: Send + 'static {
-    fn run_to_completion(self: Box<Self>) -> DriverFuture;
-    fn abort(self: Box<Self>) -> AbortFuture;
-}
-
-/// Outcome of a successful launcher call. The session handle is shared
-/// with the registry; the commander owns the process/tasks that back it.
-pub struct LaunchedSession<Session>
-where
-    Session: Send + Sync + 'static,
-{
-    pub session: Arc<Session>,
-    pub commander: Box<dyn RunCommander>,
-}
 
 /// Start a new agent run.
 ///
-/// The caller supplies a launcher closure that is responsible for all
-/// adapter-level setup (spawning the ACP subprocess, opening the session,
-/// etc.). This use case owns the registry bookkeeping and the error/
-/// cleanup flow around the launcher, so Tauri command handlers stay thin.
+/// The use case owns the registry bookkeeping and the error/cleanup
+/// flow around the launcher, so Tauri command handlers stay thin. All
+/// adapter-level setup (spawning the ACP subprocess, opening the
+/// session) is hidden behind the `SessionLauncher` port.
 pub struct StartAgentRunUseCase<R>
 where
     R: SessionRegistry,
@@ -60,16 +31,15 @@ where
         Self { registry }
     }
 
-    pub async fn execute<S, F, Fut>(
+    pub async fn execute<L, S>(
         self,
+        launcher: L,
         sink: S,
         request: AgentRunRequest,
-        launch: F,
     ) -> Result<AgentRun, String>
     where
+        L: SessionLauncher<Session = R::Session>,
         S: RunEventSink,
-        F: FnOnce(AgentRunRequest, String, S) -> Fut + Send + 'static,
-        Fut: Future<Output = Result<LaunchedSession<R::Session>>> + Send + 'static,
     {
         let run = build_run(&request);
         self.registry
@@ -82,7 +52,10 @@ where
         let sink_for_task = sink.clone();
 
         let handle = tokio::spawn(async move {
-            let launched = match launch(request, run_id.clone(), sink_for_task.clone()).await {
+            let launched = match launcher
+                .launch(request, run_id.clone(), sink_for_task.clone())
+                .await
+            {
                 Ok(launched) => launched,
                 Err(err) => {
                     sink_for_task.emit(
@@ -135,8 +108,9 @@ fn build_run(request: &AgentRunRequest) -> AgentRun {
 mod tests {
     use super::*;
     use crate::domain::events::{LifecycleStatus, RunEvent};
+    use crate::ports::session_launcher::{AbortFuture, DriverFuture, RunCommander};
     use crate::ports::session_registry::SessionRegistry;
-    use anyhow::anyhow;
+    use anyhow::{Result, anyhow};
     use std::{
         collections::HashMap,
         sync::{
@@ -179,11 +153,7 @@ mod tests {
             Ok(())
         }
 
-        async fn attach_run_handle(
-            &self,
-            run_id: &str,
-            handle: JoinHandle<()>,
-        ) -> Result<()> {
+        async fn attach_run_handle(&self, run_id: &str, handle: JoinHandle<()>) -> Result<()> {
             self.inner
                 .lock()
                 .await
@@ -254,6 +224,67 @@ mod tests {
         }
     }
 
+    struct FakeLauncher {
+        aborted: Arc<AtomicUsize>,
+        completed: Arc<AtomicUsize>,
+        done: Arc<Notify>,
+        fail_launch: bool,
+    }
+
+    impl FakeLauncher {
+        fn success(counters: &(Arc<AtomicUsize>, Arc<AtomicUsize>, Arc<Notify>)) -> Self {
+            Self {
+                aborted: counters.0.clone(),
+                completed: counters.1.clone(),
+                done: counters.2.clone(),
+                fail_launch: false,
+            }
+        }
+        fn failing(done: Arc<Notify>) -> Self {
+            Self {
+                aborted: Arc::new(AtomicUsize::new(0)),
+                completed: Arc::new(AtomicUsize::new(0)),
+                done,
+                fail_launch: true,
+            }
+        }
+    }
+
+    impl SessionLauncher for FakeLauncher {
+        type Session = FakeSession;
+
+        async fn launch<S>(
+            self,
+            _request: AgentRunRequest,
+            _run_id: String,
+            _sink: S,
+        ) -> Result<LaunchedSession<FakeSession>>
+        where
+            S: RunEventSink,
+        {
+            if self.fail_launch {
+                self.done.notify_one();
+                return Err(anyhow!("launch failed"));
+            }
+            Ok(LaunchedSession {
+                session: Arc::new(FakeSession),
+                commander: Box::new(FakeCommander {
+                    aborted: self.aborted,
+                    completed: self.completed,
+                    done: self.done,
+                }),
+            })
+        }
+    }
+
+    fn counters() -> (Arc<AtomicUsize>, Arc<AtomicUsize>, Arc<Notify>) {
+        (
+            Arc::new(AtomicUsize::new(0)),
+            Arc::new(AtomicUsize::new(0)),
+            Arc::new(Notify::new()),
+        )
+    }
+
     fn make_request() -> AgentRunRequest {
         AgentRunRequest {
             goal: "hello".into(),
@@ -270,28 +301,15 @@ mod tests {
     async fn driver_runs_when_launch_and_attach_succeed() {
         let registry = FakeRegistry::default();
         let sink = CollectingSink::default();
-        let aborted = Arc::new(AtomicUsize::new(0));
-        let completed = Arc::new(AtomicUsize::new(0));
-        let done = Arc::new(Notify::new());
-        let aborted_clone = aborted.clone();
-        let completed_clone = completed.clone();
-        let done_clone = done.clone();
+        let c = counters();
+        let launcher = FakeLauncher::success(&c);
 
         let run = StartAgentRunUseCase::new(registry.clone())
-            .execute(sink.clone(), make_request(), move |_, _, _| async move {
-                Ok(LaunchedSession {
-                    session: Arc::new(FakeSession),
-                    commander: Box::new(FakeCommander {
-                        aborted: aborted_clone,
-                        completed: completed_clone,
-                        done: done_clone,
-                    }),
-                })
-            })
+            .execute(launcher, sink.clone(), make_request())
             .await
             .expect("start should succeed");
 
-        done.notified().await;
+        c.2.notified().await;
         let handle = registry
             .inner
             .lock()
@@ -301,8 +319,8 @@ mod tests {
             .expect("handle stored");
         handle.await.expect("task should finish");
 
-        assert_eq!(completed.load(Ordering::SeqCst), 1);
-        assert_eq!(aborted.load(Ordering::SeqCst), 0);
+        assert_eq!(c.1.load(Ordering::SeqCst), 1);
+        assert_eq!(c.0.load(Ordering::SeqCst), 0);
         let state = registry.inner.lock().await;
         assert_eq!(state.reserved, vec!["run-1".to_string()]);
         assert_eq!(state.finished, vec!["run-1".to_string()]);
@@ -312,28 +330,15 @@ mod tests {
     async fn aborter_runs_when_attach_session_fails() {
         let registry = FakeRegistry::with_failing_attach().await;
         let sink = CollectingSink::default();
-        let aborted = Arc::new(AtomicUsize::new(0));
-        let completed = Arc::new(AtomicUsize::new(0));
-        let done = Arc::new(Notify::new());
-        let aborted_clone = aborted.clone();
-        let completed_clone = completed.clone();
-        let done_clone = done.clone();
+        let c = counters();
+        let launcher = FakeLauncher::success(&c);
 
         let run = StartAgentRunUseCase::new(registry.clone())
-            .execute(sink.clone(), make_request(), move |_, _, _| async move {
-                Ok(LaunchedSession {
-                    session: Arc::new(FakeSession),
-                    commander: Box::new(FakeCommander {
-                        aborted: aborted_clone,
-                        completed: completed_clone,
-                        done: done_clone,
-                    }),
-                })
-            })
+            .execute(launcher, sink.clone(), make_request())
             .await
             .expect("start call itself should succeed");
 
-        done.notified().await;
+        c.2.notified().await;
         let handle = registry
             .inner
             .lock()
@@ -343,10 +348,14 @@ mod tests {
             .expect("handle stored");
         handle.await.expect("task should finish");
 
-        assert_eq!(aborted.load(Ordering::SeqCst), 1);
-        assert_eq!(completed.load(Ordering::SeqCst), 0);
+        assert_eq!(c.0.load(Ordering::SeqCst), 1);
+        assert_eq!(c.1.load(Ordering::SeqCst), 0);
         let events = sink.events.lock().unwrap();
-        assert!(events.iter().any(|(_, event)| matches!(event, RunEvent::Diagnostic { .. })));
+        assert!(
+            events
+                .iter()
+                .any(|(_, event)| matches!(event, RunEvent::Diagnostic { .. }))
+        );
     }
 
     #[tokio::test]
@@ -354,20 +363,10 @@ mod tests {
         let registry = FakeRegistry::default();
         let sink = CollectingSink::default();
         let done = Arc::new(Notify::new());
-        let done_clone = done.clone();
-        let sink_clone = sink.clone();
+        let launcher = FakeLauncher::failing(done.clone());
 
         let run = StartAgentRunUseCase::new(registry.clone())
-            .execute(
-                sink.clone(),
-                make_request(),
-                move |_, run_id, _sink_for_launch| async move {
-                    // emit is handled by the use case on our behalf; just fail.
-                    let _ = (run_id, sink_clone);
-                    done_clone.notify_one();
-                    Err::<LaunchedSession<FakeSession>, _>(anyhow!("launch failed"))
-                },
-            )
+            .execute(launcher, sink.clone(), make_request())
             .await
             .expect("start call itself should succeed");
 
@@ -382,7 +381,11 @@ mod tests {
         handle.await.expect("task should finish");
 
         let events = sink.events.lock().unwrap();
-        assert!(events.iter().any(|(_, event)| matches!(event, RunEvent::Error { .. })));
+        assert!(
+            events
+                .iter()
+                .any(|(_, event)| matches!(event, RunEvent::Error { .. }))
+        );
         assert!(!events.iter().any(|(_, event)| matches!(
             event,
             RunEvent::Lifecycle {

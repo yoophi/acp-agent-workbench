@@ -1,10 +1,8 @@
-use std::sync::Arc;
-
 use tauri::{AppHandle, State};
 
 use crate::{
     adapters::{
-        acp::runner::{AcpAgentRunner, launch_agent_run},
+        acp::runner::AcpAgentRunner,
         agent_catalog::ConfigurableAgentCatalog,
         fs::LocalGoalFileReader,
         session_registry::AppState,
@@ -42,16 +40,10 @@ pub async fn start_agent_run(
     let sink = TauriRunEventSink::new(app);
     let permissions = state.permissions();
     let registry = state.inner().clone();
-    let runner = Arc::new(AcpAgentRunner::new(
-        ConfigurableAgentCatalog::from_env(),
-        permissions,
-    ));
+    let runner = AcpAgentRunner::new(ConfigurableAgentCatalog::from_env(), permissions);
 
     StartAgentRunUseCase::new(registry)
-        .execute(sink, request, move |request, run_id, sink_for_launch| {
-            let runner = runner.clone();
-            async move { launch_agent_run(runner, request, run_id, sink_for_launch).await }
-        })
+        .execute(runner, sink, request)
         .await
 }
 

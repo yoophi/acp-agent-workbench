@@ -79,6 +79,7 @@ flowchart LR
 | 포트 | 책임 |
 |---|---|
 | `SessionRegistry` | run id 예약/중복/동시성 한도 관리, task handle / session handle 보관, 취소 |
+| `SessionLauncher` | 세션 1건 기동. 성공 시 `LaunchedSession { session, commander }` 반환. `RunCommander`는 `run_to_completion` 또는 `abort` 중 하나만 소비 (Command/Strategy 패턴) |
 | `SessionHandle` | 활성 세션에 follow-up 프롬프트 전송 (AcpSession의 ACP 의존성을 숨긴다) |
 | `RunEventSink` | 특정 run id의 `RunEvent`를 외부 세계(예: 프런트엔드)로 내보냄 |
 | `PermissionDecisionPort` | 권한 대기열 생성/응답 |
@@ -89,7 +90,7 @@ flowchart LR
 
 | UseCase | 입력 | 핵심 작업 |
 |---|---|---|
-| `StartAgentRunUseCase` | `AgentRunRequest`, sink, launcher closure | run 예약 → 세션 launch → attach → driver await → finish |
+| `StartAgentRunUseCase` | `AgentRunRequest`, sink, `SessionLauncher` | run 예약 → 세션 launch → attach → driver await → finish |
 | `SendPromptUseCase` | run id, prompt, sink | 활성 세션 조회 → `SessionHandle::send_prompt` → 에러를 이벤트로 surface |
 | `CancelAgentRunUseCase` | run id, sink | registry cancel 호출 + `Cancelled` 라이프사이클 이벤트 emit (미존재 run도 fallback 메시지로 emit) |
 | `ListAgentsUseCase` | — | `AgentCatalog` 조회 |
@@ -102,7 +103,7 @@ flowchart LR
 |---|---|
 | `adapters/session_registry.rs::AppState` | `SessionRegistry` 구현. 내부에 `PermissionBroker` 소유 |
 | `adapters/permission_broker.rs::PermissionBroker` | `PermissionDecisionPort` 구현 |
-| `adapters/acp/runner.rs::AcpAgentRunner` | ACP agent subprocess 기동 + 세션 생성. `launch_agent_run`은 `StartAgentRunUseCase`가 받는 launcher 구현이다. |
+| `adapters/acp/runner.rs::AcpAgentRunner` | ACP agent subprocess 기동 + 세션 생성. `SessionLauncher`를 직접 구현한다. |
 | `adapters/acp/runner.rs::AcpSession` | `SessionHandle` 구현 |
 | `adapters/acp/client.rs::AcpClient` | 에이전트로부터의 JSON-RPC 요청/알림 처리 (권한/fs/terminal/tool/stateful tool tracking) |
 | `adapters/acp/transport.rs::RpcPeer` + `read_loop` | JSON-RPC 2.0 peer, stdin 기반 read loop |
