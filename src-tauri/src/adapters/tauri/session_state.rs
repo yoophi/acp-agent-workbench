@@ -1,6 +1,15 @@
 use anyhow::{Result, anyhow};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, env, sync::Arc};
 use tokio::{sync::Mutex, task::JoinHandle};
+
+const MAX_RUNS_ENV: &str = "ACP_WORKBENCH_MAX_RUNS";
+
+fn max_concurrent_runs() -> Option<usize> {
+    match env::var(MAX_RUNS_ENV) {
+        Ok(raw) => raw.trim().parse::<usize>().ok().filter(|n| *n > 0),
+        Err(_) => None,
+    }
+}
 
 use crate::{
     adapters::acp::runner::AcpSession,
@@ -28,13 +37,24 @@ impl AppState {
         self.permissions.clone()
     }
 
-    pub async fn reserve_run_if_idle(&self, run_id: String) -> Result<()> {
+    pub async fn reserve_run(&self, run_id: String) -> Result<()> {
         let mut runs = self.runs.lock().await;
-        if !runs.is_empty() {
-            return Err(anyhow!("another agent run is already in progress"));
+        if runs.contains_key(&run_id) {
+            return Err(anyhow!("duplicate run id: {run_id}"));
+        }
+        if let Some(limit) = max_concurrent_runs() {
+            if runs.len() >= limit {
+                return Err(anyhow!(
+                    "concurrent run limit ({limit}) reached; cancel an existing run before starting a new one"
+                ));
+            }
         }
         runs.insert(run_id, RunSlot::Reserved);
         Ok(())
+    }
+
+    pub async fn active_run_count(&self) -> usize {
+        self.runs.lock().await.len()
     }
 
     pub async fn attach_run_handle(&self, run_id: &str, handle: JoinHandle<()>) -> Result<()> {
@@ -138,8 +158,44 @@ impl PermissionBroker {
 
 #[cfg(test)]
 mod tests {
-    use super::PermissionBroker;
+    use super::{AppState, PermissionBroker};
     use crate::ports::permission::{PermissionDecision, PermissionDecisionPort};
+
+    #[tokio::test]
+    async fn reserve_run_allows_multiple_distinct_run_ids() {
+        let state = AppState::default();
+        state
+            .reserve_run("run-a".into())
+            .await
+            .expect("first run should reserve");
+        state
+            .reserve_run("run-b".into())
+            .await
+            .expect("second concurrent run should reserve");
+        assert_eq!(state.active_run_count().await, 2);
+    }
+
+    #[tokio::test]
+    async fn reserve_run_rejects_duplicate_run_id() {
+        let state = AppState::default();
+        state.reserve_run("run-a".into()).await.unwrap();
+        let err = state
+            .reserve_run("run-a".into())
+            .await
+            .expect_err("duplicate reservation must fail");
+        assert!(err.to_string().contains("duplicate run id"));
+    }
+
+    #[tokio::test]
+    async fn cancel_run_does_not_affect_other_runs() {
+        let state = AppState::default();
+        state.reserve_run("run-a".into()).await.unwrap();
+        state.reserve_run("run-b".into()).await.unwrap();
+        assert!(state.cancel_run("run-a").await);
+        assert_eq!(state.active_run_count().await, 1);
+        assert!(state.cancel_run("run-b").await);
+        assert_eq!(state.active_run_count().await, 0);
+    }
 
     #[tokio::test]
     async fn clearing_one_run_keeps_other_run_permission_waiters() {

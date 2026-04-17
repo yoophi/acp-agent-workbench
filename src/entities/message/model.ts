@@ -1,4 +1,5 @@
 export type AgentRunRequest = {
+  runId?: string;
   goal: string;
   agentId: string;
   cwd?: string;

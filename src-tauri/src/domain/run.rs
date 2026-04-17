@@ -10,6 +10,7 @@ pub struct AgentRunRequest {
     pub agent_command: Option<String>,
     pub stdio_buffer_limit_mb: Option<usize>,
     pub auto_allow: Option<bool>,
+    pub run_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -22,10 +23,10 @@ pub struct AgentRun {
 
 impl AgentRun {
     pub fn new(goal: String, agent_id: String) -> Self {
-        Self {
-            id: Uuid::new_v4().to_string(),
-            goal,
-            agent_id,
-        }
+        Self::with_id(Uuid::new_v4().to_string(), goal, agent_id)
+    }
+
+    pub fn with_id(id: String, goal: String, agent_id: String) -> Self {
+        Self { id, goal, agent_id }
     }
 }

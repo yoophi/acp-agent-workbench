@@ -3,226 +3,167 @@ import { useCallback, useEffect, useMemo } from "react";
 import {
   cancelAgentRun,
   listAgents,
-  listenRunEvents,
-  sendPromptToRun,
   startAgentRun,
 } from "../../shared/api/tauri";
-import type { AgentRunRequest } from "../../entities/message/model";
-import { toTimelineItem } from "../../entities/message/format";
-import { useAgentRunStore } from "./model";
+import type { AgentRunRequest, EventGroup, TimelineItem } from "../../entities/message/model";
+import { useWorkbenchStore, type TabState, type FollowUpQueueItem } from "./model";
 
-async function drainQueue() {
-  const store = useAgentRunStore.getState();
-  if (!store.sessionActive || !store.activeRunId || store.awaitingResponse) {
-    return;
-  }
-  const next = store.dequeueFollowUp();
-  if (!next) {
-    return;
-  }
-  store.setAwaitingResponse(true);
-  try {
-    await sendPromptToRun(store.activeRunId, next.text);
-  } catch (err) {
-    useAgentRunStore.setState({ awaitingResponse: false });
-    useAgentRunStore.getState().setError(String(err));
-  }
-}
+const EMPTY_FOLLOW_UP_QUEUE: FollowUpQueueItem[] = [];
+const EMPTY_ITEMS: TimelineItem[] = [];
 
-export function useAgentRun() {
-  const state = useAgentRunStore();
+export function useAgentRun(tabId: string) {
   const agentsQuery = useQuery({ queryKey: ["agents"], queryFn: listAgents });
   const agents = agentsQuery.data ?? [];
 
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    let disposed = false;
-    listenRunEvents((envelope) => {
-      const store = useAgentRunStore.getState();
-      store.appendItem(toTimelineItem(envelope.runId, envelope.event));
-      if (envelope.event.type === "lifecycle") {
-        const status = envelope.event.status;
-        if (status === "promptSent") {
-          store.setAwaitingResponse(true);
-        } else if (status === "promptCompleted") {
-          store.setAwaitingResponse(false);
-          void drainQueue();
-        } else if (status === "completed" || status === "cancelled") {
-          store.endRun();
-        }
-      }
-      if (envelope.event.type === "error") {
-        store.endRun();
-        store.setError(envelope.event.message);
-      }
-    }).then((dispose) => {
-      if (disposed) {
-        dispose();
-        return;
-      }
-      unlisten = dispose;
-    });
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (agents.length > 0 && !agents.some((agent) => agent.id === state.selectedAgentId)) {
-      state.setSelectedAgentId(agents[0].id);
-    }
-  }, [agents, state]);
-
-  useEffect(() => {
-    const shouldCountdown =
-      state.sessionActive &&
-      !state.awaitingResponse &&
-      state.followUpQueue.length === 0 &&
-      state.idleTimeoutSec > 0;
-
-    if (!shouldCountdown) {
-      if (useAgentRunStore.getState().idleRemainingSec !== null) {
-        useAgentRunStore.getState().setIdleRemainingSec(null);
-      }
-      return;
-    }
-
-    useAgentRunStore.getState().setIdleRemainingSec(state.idleTimeoutSec);
-    const interval = setInterval(() => {
-      const current = useAgentRunStore.getState();
-      if (
-        !current.sessionActive ||
-        current.awaitingResponse ||
-        current.followUpQueue.length > 0
-      ) {
-        current.setIdleRemainingSec(null);
-        clearInterval(interval);
-        return;
-      }
-      const next = (current.idleRemainingSec ?? 0) - 1;
-      if (next <= 0) {
-        current.setIdleRemainingSec(null);
-        clearInterval(interval);
-        const runId = current.activeRunId;
-        if (runId) {
-          cancelAgentRun(runId).catch(() => undefined);
-          current.endRun();
-        }
-      } else {
-        current.setIdleRemainingSec(next);
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [
-    state.sessionActive,
-    state.awaitingResponse,
-    state.followUpQueue.length,
-    state.idleTimeoutSec,
-  ]);
-
-  const selectedAgent = useMemo(
-    () => agents.find((agent) => agent.id === state.selectedAgentId),
-    [agents, state.selectedAgentId],
+  const tab = useWorkbenchStore(
+    (state) => state.tabs.find((t) => t.id === tabId),
   );
 
+  const patch = useCallback(
+    (update: Partial<TabState>) => useWorkbenchStore.getState().patchTab(tabId, update),
+    [tabId],
+  );
+
+  useEffect(() => {
+    if (!tab) return;
+    if (agents.length > 0 && !agents.some((agent) => agent.id === tab.selectedAgentId)) {
+      patch({ selectedAgentId: agents[0].id });
+    }
+  }, [agents, tab?.selectedAgentId, patch, tab]);
+
+  const selectedAgent = useMemo(
+    () => agents.find((agent) => agent.id === tab?.selectedAgentId),
+    [agents, tab?.selectedAgentId],
+  );
+
+  const items = tab?.items ?? EMPTY_ITEMS;
+  const filter: EventGroup | "all" = tab?.filter ?? "all";
   const visibleItems = useMemo(
-    () => (state.filter === "all" ? state.items : state.items.filter((item) => item.group === state.filter)),
-    [state.filter, state.items],
+    () => (filter === "all" ? items : items.filter((item) => item.group === filter)),
+    [filter, items],
   );
 
   const run = useCallback(async () => {
-    const trimmedGoal = state.goal.trim();
+    const current = useWorkbenchStore.getState().tabs.find((t) => t.id === tabId);
+    if (!current) return;
+    const trimmedGoal = current.goal.trim();
     if (!trimmedGoal) {
-      state.setError("Goal is empty.");
+      patch({ error: "Goal is empty." });
       return;
     }
-    state.beginRun();
+    const runId = crypto.randomUUID();
+    useWorkbenchStore.getState().beginRun(tabId, runId);
 
     const request: AgentRunRequest = {
+      runId,
       goal: trimmedGoal,
-      agentId: state.selectedAgentId,
-      cwd: state.cwd.trim() || undefined,
-      agentCommand: state.customCommand.trim() || undefined,
-      stdioBufferLimitMb: Math.min(512, Math.max(1, state.stdioBufferLimitMb || 50)),
-      autoAllow: state.autoAllow,
+      agentId: current.selectedAgentId,
+      cwd: current.cwd.trim() || undefined,
+      agentCommand: current.customCommand.trim() || undefined,
+      stdioBufferLimitMb: Math.min(512, Math.max(1, current.stdioBufferLimitMb || 50)),
+      autoAllow: current.autoAllow,
     };
 
     try {
-      const started = await startAgentRun(request);
-      state.setActiveRunId(started.id);
+      await startAgentRun(request);
     } catch (err) {
-      state.endRun();
-      state.setError(String(err));
+      useWorkbenchStore.getState().patchTab(tabId, { activeRunId: null });
+      useWorkbenchStore.getState().endRun(tabId);
+      patch({ error: String(err) });
     }
-  }, [state]);
+  }, [tabId, patch]);
 
   const cancel = useCallback(async () => {
-    if (!state.activeRunId) {
-      return;
-    }
+    const current = useWorkbenchStore.getState().tabs.find((t) => t.id === tabId);
+    if (!current?.activeRunId) return;
     try {
-      await cancelAgentRun(state.activeRunId);
-      state.endRun();
-      state.setError(null);
+      await cancelAgentRun(current.activeRunId);
+      useWorkbenchStore.getState().endRun(tabId);
+      patch({ error: null });
     } catch (err) {
-      state.setError(String(err));
+      patch({ error: String(err) });
     }
-  }, [state]);
+  }, [tabId, patch]);
 
   const send = useCallback(() => {
-    const store = useAgentRunStore.getState();
-    if (!store.sessionActive) {
-      return;
-    }
-    const trimmed = store.followUpDraft.trim();
-    if (!trimmed) {
-      return;
-    }
-    store.enqueueFollowUp(trimmed);
-    store.setFollowUpDraft("");
-    void drainQueue();
-  }, []);
+    const store = useWorkbenchStore.getState();
+    const current = store.tabs.find((t) => t.id === tabId);
+    if (!current?.sessionActive) return;
+    const trimmed = current.followUpDraft.trim();
+    if (!trimmed) return;
+    store.enqueueFollowUp(tabId, trimmed);
+    store.patchTab(tabId, { followUpDraft: "" });
+  }, [tabId]);
 
-  const cancelFollowUp = useCallback((id: string) => {
-    useAgentRunStore.getState().removeFollowUp(id);
-  }, []);
+  const cancelFollowUp = useCallback(
+    (id: string) => useWorkbenchStore.getState().removeFollowUp(tabId, id),
+    [tabId],
+  );
+
+  const setSelectedAgentId = useCallback(
+    (value: string) => patch({ selectedAgentId: value }),
+    [patch],
+  );
+  const setGoal = useCallback((value: string) => patch({ goal: value }), [patch]);
+  const setCwd = useCallback((value: string) => patch({ cwd: value }), [patch]);
+  const setCustomCommand = useCallback(
+    (value: string) => patch({ customCommand: value }),
+    [patch],
+  );
+  const setStdioBufferLimitMb = useCallback(
+    (value: number) => patch({ stdioBufferLimitMb: value }),
+    [patch],
+  );
+  const setAutoAllow = useCallback((value: boolean) => patch({ autoAllow: value }), [patch]);
+  const setIdleTimeoutSec = useCallback(
+    (value: number) => patch({ idleTimeoutSec: value }),
+    [patch],
+  );
+  const setFollowUpDraft = useCallback(
+    (value: string) => patch({ followUpDraft: value }),
+    [patch],
+  );
+  const setFilter = useCallback(
+    (value: EventGroup | "all") => patch({ filter: value }),
+    [patch],
+  );
+  const setError = useCallback((value: string | null) => patch({ error: value }), [patch]);
 
   return {
     agents,
     agentsLoading: agentsQuery.isLoading,
     selectedAgent,
-    selectedAgentId: state.selectedAgentId,
-    setSelectedAgentId: state.setSelectedAgentId,
-    goal: state.goal,
-    setGoal: state.setGoal,
-    cwd: state.cwd,
-    setCwd: state.setCwd,
-    customCommand: state.customCommand,
-    setCustomCommand: state.setCustomCommand,
-    stdioBufferLimitMb: state.stdioBufferLimitMb,
-    setStdioBufferLimitMb: state.setStdioBufferLimitMb,
-    autoAllow: state.autoAllow,
-    setAutoAllow: state.setAutoAllow,
-    idleTimeoutSec: state.idleTimeoutSec,
-    setIdleTimeoutSec: state.setIdleTimeoutSec,
-    idleRemainingSec: state.idleRemainingSec,
-    activeRunId: state.activeRunId,
-    sessionActive: state.sessionActive,
-    awaitingResponse: state.awaitingResponse,
-    isRunning: state.sessionActive,
-    followUpDraft: state.followUpDraft,
-    setFollowUpDraft: state.setFollowUpDraft,
-    followUpQueue: state.followUpQueue,
+    selectedAgentId: tab?.selectedAgentId ?? "",
+    setSelectedAgentId,
+    goal: tab?.goal ?? "",
+    setGoal,
+    cwd: tab?.cwd ?? "",
+    setCwd,
+    customCommand: tab?.customCommand ?? "",
+    setCustomCommand,
+    stdioBufferLimitMb: tab?.stdioBufferLimitMb ?? 50,
+    setStdioBufferLimitMb,
+    autoAllow: tab?.autoAllow ?? true,
+    setAutoAllow,
+    idleTimeoutSec: tab?.idleTimeoutSec ?? 0,
+    setIdleTimeoutSec,
+    idleRemainingSec: tab?.idleRemainingSec ?? null,
+    activeRunId: tab?.activeRunId ?? null,
+    sessionActive: tab?.sessionActive ?? false,
+    awaitingResponse: tab?.awaitingResponse ?? false,
+    isRunning: tab?.sessionActive ?? false,
+    followUpDraft: tab?.followUpDraft ?? "",
+    setFollowUpDraft,
+    followUpQueue: tab?.followUpQueue ?? EMPTY_FOLLOW_UP_QUEUE,
     cancelFollowUp,
-    error: state.error ?? (agentsQuery.error ? String(agentsQuery.error) : null),
-    setError: state.setError,
+    error: tab?.error ?? (agentsQuery.error ? String(agentsQuery.error) : null),
+    setError,
     run,
     cancel,
     send,
-    items: state.items,
+    items,
     visibleItems,
-    filter: state.filter,
-    setFilter: state.setFilter,
+    filter,
+    setFilter,
   };
 }

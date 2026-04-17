@@ -1,12 +1,15 @@
 import { GoalEditor } from "../../features/goal-input/GoalEditor";
 import { useAgentRun } from "../../features/agent-run/useAgentRun";
+import { useWorkbenchStore } from "../../features/agent-run/model";
 import { EventStream } from "../../widgets/event-stream/EventStream";
 import { FollowUpComposer } from "../../widgets/follow-up-composer/FollowUpComposer";
 import { FollowUpQueue } from "../../widgets/follow-up-queue/FollowUpQueue";
 import { RunPanel } from "../../widgets/run-panel/RunPanel";
+import { TabBar } from "../../widgets/workbench-tabs/TabBar";
 
 export function AgentWorkbenchPage() {
-  const state = useAgentRun();
+  const activeTabId = useWorkbenchStore((s) => s.activeTabId);
+  const state = useAgentRun(activeTabId);
 
   return (
     <main className="shell min-h-screen">
@@ -17,6 +20,8 @@ export function AgentWorkbenchPage() {
         </div>
         {state.error ? <div className="error-banner">{state.error}</div> : null}
       </header>
+
+      <TabBar />
 
       <div className="workspace-grid">
         <div className="left-column">

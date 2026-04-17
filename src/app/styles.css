@@ -764,3 +764,132 @@ button:disabled {
     grid-column: 1;
   }
 }
+
+.tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(23, 25, 21, 0.08);
+  border-radius: 12px;
+  overflow-x: auto;
+}
+
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #20231f;
+  font-size: 13px;
+  max-width: 220px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.tab-item:hover {
+  background: rgba(23, 25, 21, 0.04);
+}
+
+.tab-item--active {
+  background: #fff;
+  border-color: rgba(23, 25, 21, 0.14);
+  box-shadow: 0 1px 3px rgba(23, 25, 21, 0.08);
+}
+
+.tab-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #b8bcb4;
+  flex-shrink: 0;
+}
+
+.tab-status--running {
+  background: #2f8a4a;
+}
+
+.tab-status--awaiting {
+  background: #2e6be6;
+  animation: tab-status-pulse 1.2s ease-in-out infinite;
+}
+
+.tab-status--idle-countdown {
+  background: #e08a1a;
+}
+
+.tab-status--error {
+  background: #c43c3c;
+}
+
+.tab-status--closing {
+  background: #9a9a9a;
+  animation: tab-status-pulse 1s ease-in-out infinite;
+}
+
+@keyframes tab-status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.tab-permission {
+  color: #c4761f;
+  font-size: 12px;
+}
+
+.tab-unread {
+  background: #2e6be6;
+  color: #fff;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.tab-close {
+  border: none;
+  background: transparent;
+  color: rgba(23, 25, 21, 0.5);
+  padding: 0 4px;
+  font-size: 16px;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+.tab-close:hover {
+  background: rgba(23, 25, 21, 0.08);
+  color: #171915;
+}
+
+.tab-add {
+  border: 1px dashed rgba(23, 25, 21, 0.2);
+  background: transparent;
+  color: rgba(23, 25, 21, 0.6);
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.tab-add:hover {
+  background: rgba(23, 25, 21, 0.04);
+  color: #171915;
+}
