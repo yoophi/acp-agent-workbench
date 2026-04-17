@@ -55,6 +55,8 @@ if (violations.length > 0) {
 console.log("FSD boundary check passed.");
 
 function runBoundarySelfTest() {
+  runSpecifierParserSelfTest();
+
   const cases = [
     {
       name: "shared cannot import entities",
@@ -106,6 +108,36 @@ function runBoundarySelfTest() {
   console.log("FSD boundary self-test passed.");
 }
 
+function runSpecifierParserSelfTest() {
+  const source = `
+    import React from "react";
+    import { eventGroups } from "../../entities/message";
+    import type { TimelineItem } from "../../entities/message";
+    import "../../app/styles.css";
+    const lazy = import("../../widgets/event-stream");
+    export { useAgentRun } from "../../features/agent-run";
+    export type { AgentDescriptor } from "../../entities/agent";
+    export * from "../../shared/ui";
+  `;
+  const actual = collectImportSpecifiers(source);
+  const expected = [
+    "react",
+    "../../entities/message",
+    "../../entities/message",
+    "../../app/styles.css",
+    "../../widgets/event-stream",
+    "../../features/agent-run",
+    "../../entities/agent",
+    "../../shared/ui",
+  ];
+
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(
+      `Self-test failed for import specifier parsing: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}.`,
+    );
+  }
+}
+
 function validateImport(relativeFile, specifier, fromFile, imported) {
   const fromModule = getModuleInfo(fromFile);
   const toModule = getModuleInfo(imported);
@@ -127,9 +159,10 @@ function* walk(directory) {
 
 function collectImportSpecifiers(source) {
   const specifiers = [];
-  const importFrom = /import\s+(?:type\s+)?[\s\S]*?\s+from\s+["']([^"']+)["']/g;
-  const sideEffectImport = /import\s+["']([^"']+)["']/g;
+  const importFrom = /^\s*import\s+(?!["'(])(?:type\s+)?[\s\S]*?\s+from\s+["']([^"']+)["']/gm;
+  const sideEffectImport = /^\s*import\s+["']([^"']+)["']/gm;
   const dynamicImport = /import\s*\(\s*["']([^"']+)["']\s*\)/g;
+  const reExportFrom = /^\s*export\s+(?:type\s+)?(?:\*|\{[\s\S]*?\})\s+from\s+["']([^"']+)["']/gm;
 
   for (const match of source.matchAll(importFrom)) {
     specifiers.push(match[1]);
@@ -138,6 +171,9 @@ function collectImportSpecifiers(source) {
     specifiers.push(match[1]);
   }
   for (const match of source.matchAll(dynamicImport)) {
+    specifiers.push(match[1]);
+  }
+  for (const match of source.matchAll(reExportFrom)) {
     specifiers.push(match[1]);
   }
 
