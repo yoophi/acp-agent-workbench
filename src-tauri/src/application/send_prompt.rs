@@ -1,8 +1,8 @@
 use crate::{
+    application::errors::SendPromptError,
     domain::events::RunEvent,
     ports::{
-        event_sink::RunEventSink, session_handle::SessionHandle,
-        session_registry::SessionRegistry,
+        event_sink::RunEventSink, session_handle::SessionHandle, session_registry::SessionRegistry,
     },
 };
 
@@ -33,19 +33,19 @@ where
         sink: S,
         run_id: String,
         prompt: String,
-    ) -> Result<(), String>
+    ) -> Result<(), SendPromptError>
     where
         S: RunEventSink,
     {
         let trimmed = prompt.trim().to_string();
         if trimmed.is_empty() {
-            return Err("prompt is empty".into());
+            return Err(SendPromptError::EmptyPrompt);
         }
         let session = self
             .registry
             .active_session(&run_id)
             .await
-            .ok_or_else(|| "agent run is not active".to_string())?;
+            .ok_or(SendPromptError::RunNotActive)?;
         let sink_for_task = sink.clone();
         tokio::spawn(async move {
             if let Err(err) = session.send_prompt(sink_for_task.clone(), trimmed).await {
@@ -64,6 +64,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::application::errors::SendPromptError;
     use crate::ports::session_registry::SessionRegistry;
     use anyhow::{Result, anyhow};
     use std::{
@@ -162,7 +163,7 @@ mod tests {
             .execute(sink.clone(), "run-a".into(), "   ".into())
             .await;
 
-        assert_eq!(result, Err("prompt is empty".into()));
+        assert_eq!(result, Err(SendPromptError::EmptyPrompt));
         assert!(sink.events.lock().unwrap().is_empty());
     }
 
@@ -175,7 +176,7 @@ mod tests {
             .execute(sink, "missing".into(), "hi".into())
             .await;
 
-        assert_eq!(result, Err("agent run is not active".into()));
+        assert_eq!(result, Err(SendPromptError::RunNotActive));
     }
 
     #[tokio::test]

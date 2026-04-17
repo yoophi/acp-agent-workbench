@@ -1,4 +1,5 @@
 use crate::{
+    application::errors::StartAgentRunError,
     domain::{
         events::RunEvent,
         run::{AgentRun, AgentRunRequest},
@@ -36,7 +37,7 @@ where
         launcher: L,
         sink: S,
         request: AgentRunRequest,
-    ) -> Result<AgentRun, String>
+    ) -> Result<AgentRun, StartAgentRunError>
     where
         L: SessionLauncher<Session = R::Session>,
         S: RunEventSink,
@@ -45,7 +46,7 @@ where
         self.registry
             .reserve_run(run.id.clone())
             .await
-            .map_err(|err| err.to_string())?;
+            .map_err(|err| StartAgentRunError::ReserveRun(err.to_string()))?;
 
         let registry = self.registry.clone();
         let run_id = run.id.clone();
@@ -89,7 +90,7 @@ where
         self.registry
             .attach_run_handle(&run.id, handle)
             .await
-            .map_err(|err| err.to_string())?;
+            .map_err(|err| StartAgentRunError::AttachRunHandle(err.to_string()))?;
 
         Ok(run)
     }
@@ -107,6 +108,7 @@ fn build_run(request: &AgentRunRequest) -> AgentRun {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::application::errors::StartAgentRunError;
     use crate::domain::events::{LifecycleStatus, RunEvent};
     use crate::ports::session_launcher::{AbortFuture, DriverFuture, RunCommander};
     use crate::ports::session_registry::SessionRegistry;
@@ -134,10 +136,24 @@ mod tests {
         finished: Vec<String>,
         sessions: HashMap<String, Arc<FakeSession>>,
         handles: HashMap<String, JoinHandle<()>>,
+        fail_reserve_run: bool,
+        fail_attach_run_handle: bool,
         fail_attach_session: bool,
     }
 
     impl FakeRegistry {
+        async fn with_failing_reserve_run() -> Self {
+            let reg = Self::default();
+            reg.inner.lock().await.fail_reserve_run = true;
+            reg
+        }
+
+        async fn with_failing_attach_run_handle() -> Self {
+            let reg = Self::default();
+            reg.inner.lock().await.fail_attach_run_handle = true;
+            reg
+        }
+
         async fn with_failing_attach() -> Self {
             let reg = Self::default();
             reg.inner.lock().await.fail_attach_session = true;
@@ -149,24 +165,25 @@ mod tests {
         type Session = FakeSession;
 
         async fn reserve_run(&self, run_id: String) -> Result<()> {
-            self.inner.lock().await.reserved.push(run_id);
+            let mut state = self.inner.lock().await;
+            if state.fail_reserve_run {
+                return Err(anyhow!("simulated reserve_run failure"));
+            }
+            state.reserved.push(run_id);
             Ok(())
         }
 
         async fn attach_run_handle(&self, run_id: &str, handle: JoinHandle<()>) -> Result<()> {
-            self.inner
-                .lock()
-                .await
-                .handles
-                .insert(run_id.to_string(), handle);
+            let mut state = self.inner.lock().await;
+            if state.fail_attach_run_handle {
+                handle.abort();
+                return Err(anyhow!("simulated attach_run_handle failure"));
+            }
+            state.handles.insert(run_id.to_string(), handle);
             Ok(())
         }
 
-        async fn attach_session(
-            &self,
-            run_id: &str,
-            session: Arc<FakeSession>,
-        ) -> Result<()> {
+        async fn attach_session(&self, run_id: &str, session: Arc<FakeSession>) -> Result<()> {
             let mut state = self.inner.lock().await;
             if state.fail_attach_session {
                 return Err(anyhow!("simulated attach_session failure"));
@@ -324,6 +341,48 @@ mod tests {
         let state = registry.inner.lock().await;
         assert_eq!(state.reserved, vec!["run-1".to_string()]);
         assert_eq!(state.finished, vec!["run-1".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn returns_typed_error_when_reserve_run_fails() {
+        let registry = FakeRegistry::with_failing_reserve_run().await;
+        let sink = CollectingSink::default();
+        let c = counters();
+        let launcher = FakeLauncher::success(&c);
+
+        let result = StartAgentRunUseCase::new(registry.clone())
+            .execute(launcher, sink, make_request())
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(StartAgentRunError::ReserveRun(message))
+                if message == "simulated reserve_run failure"
+        ));
+        let state = registry.inner.lock().await;
+        assert!(state.reserved.is_empty());
+        assert!(state.handles.is_empty());
+    }
+
+    #[tokio::test]
+    async fn returns_typed_error_when_attach_run_handle_fails() {
+        let registry = FakeRegistry::with_failing_attach_run_handle().await;
+        let sink = CollectingSink::default();
+        let c = counters();
+        let launcher = FakeLauncher::success(&c);
+
+        let result = StartAgentRunUseCase::new(registry.clone())
+            .execute(launcher, sink, make_request())
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(StartAgentRunError::AttachRunHandle(message))
+                if message == "simulated attach_run_handle failure"
+        ));
+        let state = registry.inner.lock().await;
+        assert_eq!(state.reserved, vec!["run-1".to_string()]);
+        assert!(state.handles.is_empty());
     }
 
     #[tokio::test]

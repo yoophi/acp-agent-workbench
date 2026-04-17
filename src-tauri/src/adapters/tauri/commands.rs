@@ -45,6 +45,7 @@ pub async fn start_agent_run(
     StartAgentRunUseCase::new(registry)
         .execute(runner, sink, request)
         .await
+        .map_err(String::from)
 }
 
 #[tauri::command]
@@ -59,6 +60,7 @@ pub async fn send_prompt_to_run(
     SendPromptUseCase::new(registry)
         .execute(sink, run_id, prompt)
         .await
+        .map_err(String::from)
 }
 
 #[tauri::command]
