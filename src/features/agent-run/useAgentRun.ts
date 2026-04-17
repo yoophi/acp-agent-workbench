@@ -4,8 +4,8 @@ import {
   cancelAgentRun,
   listAgents,
   startAgentRun,
-} from "../../shared/api/tauri";
-import type { AgentRunRequest, EventGroup, TimelineItem } from "../../entities/message/model";
+} from "./api";
+import type { AgentRunRequest, EventGroup, TimelineItem } from "../../entities/message";
 import { useWorkbenchStore, type TabState, type FollowUpQueueItem } from "./model";
 
 const EMPTY_FOLLOW_UP_QUEUE: FollowUpQueueItem[] = [];

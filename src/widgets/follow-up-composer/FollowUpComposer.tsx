@@ -1,8 +1,6 @@
 import { Send } from "lucide-react";
 import type { KeyboardEvent } from "react";
-import { Button } from "../../shared/ui/Button";
-import { Card, CardContent, CardHeader, CardTitle, CardTitleBlock } from "../../shared/ui/Card";
-import { Textarea } from "../../shared/ui/Textarea";
+import { Button, Card, CardContent, CardHeader, CardTitle, CardTitleBlock, Textarea } from "../../shared/ui";
 
 type FollowUpComposerProps = {
   value: string;

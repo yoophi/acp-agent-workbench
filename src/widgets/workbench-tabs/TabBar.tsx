@@ -1,11 +1,7 @@
 import { useCallback } from "react";
-import { cancelAgentRun } from "../../shared/api/tauri";
-import { useWorkbenchStore, type TabState } from "../../features/agent-run/model";
-import { cn } from "../../shared/lib/utils";
-import { Badge } from "../../shared/ui/Badge";
-import { Button } from "../../shared/ui/Button";
-
-const CLOSE_FALLBACK_MS = 5000;
+import { closeWorkbenchTab, useWorkbenchStore, type TabState } from "../../features/agent-run";
+import { cn } from "../../shared/lib";
+import { Badge, Button } from "../../shared/ui";
 
 type TabStatus =
   | "idle"
@@ -76,36 +72,8 @@ export function TabBar() {
     useWorkbenchStore.getState().addTab();
   }, []);
 
-  const handleClose = useCallback(async (tabId: string) => {
-    const store = useWorkbenchStore.getState();
-    const tab = store.tabs.find((t) => t.id === tabId);
-    if (!tab) return;
-    if (tab.closing && tab.error) {
-      store.forceCloseTab(tabId);
-      return;
-    }
-    if (tab.closing) return;
-    if (tab.activeRunId && tab.sessionActive) {
-      store.closeTab(tabId);
-      try {
-        await cancelAgentRun(tab.activeRunId);
-      } catch (err) {
-        useWorkbenchStore.getState().patchTab(tabId, {
-          error: `탭 종료 실패: ${String(err)}`,
-        });
-        return;
-      }
-      setTimeout(() => {
-        const current = useWorkbenchStore.getState().tabs.find((t) => t.id === tabId);
-        if (current && current.closing && !current.error) {
-          useWorkbenchStore.getState().patchTab(tabId, {
-            error: "backend lifecycle 이벤트를 받지 못했습니다. 강제로 닫을 수 있습니다.",
-          });
-        }
-      }, CLOSE_FALLBACK_MS);
-      return;
-    }
-    store.closeTab(tabId);
+  const handleClose = useCallback((tabId: string) => {
+    void closeWorkbenchTab(tabId);
   }, []);
 
   return (

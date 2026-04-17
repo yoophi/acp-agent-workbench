@@ -1,6 +1,5 @@
 import { create } from "zustand";
-import type { EventGroup, RunEvent, TimelineItem } from "../../entities/message/model";
-import { toTimelineItem } from "../../entities/message/format";
+import { toTimelineItem, type EventGroup, type RunEvent, type TimelineItem } from "../../entities/message";
 
 const defaultGoal = "todo rest api 를 nodejs 로 작성해주세요. 데이터는 json 파일로 저장해주세요";
 

@@ -1,4 +1,4 @@
-import { cancelAgentRun, listenRunEvents, sendPromptToRun } from "../../shared/api/tauri";
+import { cancelAgentRun, listenRunEvents, sendPromptToRun } from "./api";
 import { useWorkbenchStore } from "./model";
 
 let installed = false;

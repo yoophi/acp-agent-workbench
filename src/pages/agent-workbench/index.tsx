@@ -1,11 +1,10 @@
-import { GoalEditor } from "../../features/goal-input/GoalEditor";
-import { useAgentRun } from "../../features/agent-run/useAgentRun";
-import { useWorkbenchStore } from "../../features/agent-run/model";
-import { EventStream } from "../../widgets/event-stream/EventStream";
-import { FollowUpComposer } from "../../widgets/follow-up-composer/FollowUpComposer";
-import { FollowUpQueue } from "../../widgets/follow-up-queue/FollowUpQueue";
-import { RunPanel } from "../../widgets/run-panel/RunPanel";
-import { TabBar } from "../../widgets/workbench-tabs/TabBar";
+import { useAgentRun, useWorkbenchStore } from "../../features/agent-run";
+import { GoalEditor } from "../../features/goal-input";
+import { EventStream } from "../../widgets/event-stream";
+import { FollowUpComposer } from "../../widgets/follow-up-composer";
+import { FollowUpQueue } from "../../widgets/follow-up-queue";
+import { RunPanel } from "../../widgets/run-panel";
+import { TabBar } from "../../widgets/workbench-tabs";
 
 export function AgentWorkbenchPage() {
   const activeTabId = useWorkbenchStore((s) => s.activeTabId);

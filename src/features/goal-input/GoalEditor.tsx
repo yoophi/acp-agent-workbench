@@ -1,9 +1,7 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { FileUp } from "lucide-react";
-import { loadGoalFile } from "../../shared/api/tauri";
-import { Button } from "../../shared/ui/Button";
-import { Card, CardHeader, CardTitle, CardTitleBlock } from "../../shared/ui/Card";
-import { Textarea } from "../../shared/ui/Textarea";
+import { Button, Card, CardHeader, CardTitle, CardTitleBlock, Textarea } from "../../shared/ui";
+import { loadGoalFile } from "./api";
 
 type GoalEditorProps = {
   value: string;

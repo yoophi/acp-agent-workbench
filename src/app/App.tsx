@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { AgentWorkbenchPage } from "../pages/agent-workbench";
-import { installAgentRuntime } from "../features/agent-run/runtime";
+import { installAgentRuntime } from "../features/agent-run";
 
 const queryClient = new QueryClient();
 

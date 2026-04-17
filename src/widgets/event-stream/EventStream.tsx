@@ -1,12 +1,10 @@
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { eventGroups } from "../../entities/message/format";
-import type { EventGroup, TimelineItem } from "../../entities/message/model";
-import { respondAgentPermission } from "../../shared/api/tauri";
-import { cn } from "../../shared/lib/utils";
-import { Button } from "../../shared/ui/Button";
-import { Card, CardHeader, CardTitle, CardTitleBlock } from "../../shared/ui/Card";
+import { eventGroups, type EventGroup, type TimelineItem } from "../../entities/message";
+import { usePermissionResponse } from "../../features/permission-response";
+import { cn } from "../../shared/lib";
+import { Button, Card, CardHeader, CardTitle, CardTitleBlock } from "../../shared/ui";
 
 type EventStreamProps = {
   items: TimelineItem[];
@@ -17,22 +15,10 @@ type EventStreamProps = {
 
 export function EventStream({ items, filter, onFilterChange, onError }: EventStreamProps) {
   const endRef = useRef<HTMLDivElement | null>(null);
-  const [pendingPermissionIds, setPendingPermissionIds] = useState<Set<string>>(() => new Set());
+  const permissionResponse = usePermissionResponse(items, onError);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [items]);
-
-  useEffect(() => {
-    setPendingPermissionIds((current) => {
-      const next = new Set(current);
-      for (const item of items) {
-        if (item.event.type === "permission" && item.event.permissionId && !item.event.requiresResponse) {
-          next.delete(item.event.permissionId);
-        }
-      }
-      return next;
-    });
   }, [items]);
 
   return (
@@ -85,8 +71,8 @@ export function EventStream({ items, filter, onFilterChange, onError }: EventStr
                     type="button"
                     variant="primary"
                     size="sm"
-                    onClick={() => respondToPermission(item, "allow", setPendingPermissionIds, onError)}
-                    disabled={pendingPermissionIds.has(item.event.permissionId) || !findPermissionOption(item, "allow")}
+                    onClick={() => permissionResponse.respond(item, "allow")}
+                    disabled={permissionResponse.isPending(item.event.permissionId) || !permissionResponse.hasOption(item, "allow")}
                   >
                     Approve
                   </Button>
@@ -94,8 +80,8 @@ export function EventStream({ items, filter, onFilterChange, onError }: EventStr
                     type="button"
                     variant="secondary"
                     size="sm"
-                    onClick={() => respondToPermission(item, "reject", setPendingPermissionIds, onError)}
-                    disabled={pendingPermissionIds.has(item.event.permissionId) || !findPermissionOption(item, "reject")}
+                    onClick={() => permissionResponse.respond(item, "reject")}
+                    disabled={permissionResponse.isPending(item.event.permissionId) || !permissionResponse.hasOption(item, "reject")}
                   >
                     Reject
                   </Button>
@@ -227,46 +213,5 @@ function toneClassName(item: TimelineItem) {
     case "info":
     default:
       return "border-l-info";
-  }
-}
-
-function findPermissionOption(item: TimelineItem, mode: "allow" | "reject") {
-  if (item.event.type !== "permission") {
-    return undefined;
-  }
-  return item.event.options.find((option) => {
-    const kind = option.kind.toLowerCase();
-    if (mode === "allow") {
-      return kind.startsWith("allow");
-    }
-    return kind.startsWith("reject") || kind.startsWith("deny");
-  });
-}
-
-async function respondToPermission(
-  item: TimelineItem,
-  mode: "allow" | "reject",
-  setPendingPermissionIds: Dispatch<SetStateAction<Set<string>>>,
-  onError: (message: string | null) => void,
-) {
-  if (item.event.type !== "permission" || !item.event.permissionId) {
-    return;
-  }
-  const option = findPermissionOption(item, mode);
-  if (!option) {
-    return;
-  }
-  const permissionId = item.event.permissionId;
-  setPendingPermissionIds((current) => new Set(current).add(permissionId));
-  try {
-    await respondAgentPermission(permissionId, option.optionId);
-    onError(null);
-  } catch (err) {
-    setPendingPermissionIds((current) => {
-      const next = new Set(current);
-      next.delete(permissionId);
-      return next;
-    });
-    onError(String(err));
   }
 }

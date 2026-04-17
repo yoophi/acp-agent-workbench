@@ -1,10 +1,7 @@
 import { Octagon, Play, ShieldCheck } from "lucide-react";
-import type { AgentDescriptor } from "../../entities/agent/model";
-import { Button } from "../../shared/ui/Button";
-import { Card, CardContent, CardHeader, CardTitle, CardTitleBlock } from "../../shared/ui/Card";
-import { Input } from "../../shared/ui/Input";
-import { NativeSelect } from "../../shared/ui/NativeSelect";
-import { cn } from "../../shared/lib/utils";
+import type { AgentDescriptor } from "../../entities/agent";
+import { cn } from "../../shared/lib";
+import { Button, Card, CardContent, CardHeader, CardTitle, CardTitleBlock, Input, NativeSelect } from "../../shared/ui";
 
 type RunPanelProps = {
   agents: AgentDescriptor[];
