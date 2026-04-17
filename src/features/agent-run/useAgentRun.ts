@@ -25,11 +25,12 @@ export function useAgentRun(tabId: string) {
   );
 
   useEffect(() => {
-    if (!tab) return;
-    if (agents.length > 0 && !agents.some((agent) => agent.id === tab.selectedAgentId)) {
+    const current = tab?.selectedAgentId;
+    if (!current) return;
+    if (agents.length > 0 && !agents.some((agent) => agent.id === current)) {
       patch({ selectedAgentId: agents[0].id });
     }
-  }, [agents, tab?.selectedAgentId, patch, tab]);
+  }, [agents, tab?.selectedAgentId, patch]);
 
   const selectedAgent = useMemo(
     () => agents.find((agent) => agent.id === tab?.selectedAgentId),

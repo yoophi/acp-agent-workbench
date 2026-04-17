@@ -40,6 +40,7 @@ type WorkbenchState = {
   activeTabId: string;
   addTab: (preset?: Partial<TabState>) => string;
   closeTab: (tabId: string) => string | null;
+  forceCloseTab: (tabId: string) => string | null;
   activateTab: (tabId: string) => void;
   renameTab: (tabId: string, title: string) => void;
   patchTab: (tabId: string, patch: Partial<TabState>) => void;
@@ -54,7 +55,7 @@ type WorkbenchState = {
 };
 
 function createId(prefix: string) {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 8)}`;
+  return `${prefix}-${crypto.randomUUID()}`;
 }
 
 function defaultTabTitle(index: number) {
@@ -137,6 +138,25 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
       return state.activeTabId;
     }
 
+    if (state.tabs.length <= 1) {
+      const replacement = createTabState({}, 0);
+      set({ tabs: [replacement], activeTabId: replacement.id });
+      return replacement.id;
+    }
+    const index = state.tabs.findIndex((t) => t.id === tabId);
+    const remaining = state.tabs.filter((t) => t.id !== tabId);
+    let nextActive = state.activeTabId;
+    if (state.activeTabId === tabId) {
+      const neighbor = remaining[index] ?? remaining[index - 1] ?? remaining[0];
+      nextActive = neighbor.id;
+    }
+    set({ tabs: remaining, activeTabId: nextActive });
+    return nextActive;
+  },
+
+  forceCloseTab: (tabId) => {
+    const state = get();
+    if (!state.tabs.some((t) => t.id === tabId)) return state.activeTabId;
     if (state.tabs.length <= 1) {
       const replacement = createTabState({}, 0);
       set({ tabs: [replacement], activeTabId: replacement.id });
@@ -297,6 +317,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
           permissionPending = event.requiresResponse;
         }
 
+        const nextUnread = isActive ? t.unreadCount : t.unreadCount + 1;
         return {
           ...t,
           items: nextItems,
@@ -305,7 +326,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
           error,
           permissionPending,
           idleRemainingSec,
-          unreadCount: isActive ? 0 : t.unreadCount + 1,
+          unreadCount: nextUnread,
         };
       }),
     }));

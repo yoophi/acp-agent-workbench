@@ -58,6 +58,10 @@ export function TabBar() {
     const store = useWorkbenchStore.getState();
     const tab = store.tabs.find((t) => t.id === tabId);
     if (!tab) return;
+    if (tab.closing && tab.error) {
+      store.forceCloseTab(tabId);
+      return;
+    }
     if (tab.closing) return;
     if (tab.activeRunId && tab.sessionActive) {
       store.closeTab(tabId);
@@ -105,14 +109,25 @@ export function TabBar() {
             <button
               type="button"
               className="tab-close"
-              aria-label={tab.closing ? "종료 중" : "탭 닫기"}
-              disabled={tab.closing}
+              aria-label={
+                tab.closing && tab.error
+                  ? "강제 닫기"
+                  : tab.closing
+                    ? "종료 중"
+                    : "탭 닫기"
+              }
+              disabled={tab.closing && !tab.error}
               onClick={(event) => {
                 event.stopPropagation();
                 void handleClose(tab.id);
               }}
+              title={
+                tab.closing && tab.error
+                  ? "닫기를 재시도하면 강제로 제거합니다"
+                  : undefined
+              }
             >
-              {tab.closing ? "…" : "×"}
+              {tab.closing && tab.error ? "!" : tab.closing ? "…" : "×"}
             </button>
           </div>
         );
