@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../../shared/api", () => ({
   invokeCommand: vi.fn(),
@@ -17,12 +17,10 @@ import { setupTauriListeners } from "../../test/tauri";
 const mockedInvoke = vi.mocked(invokeCommand);
 const mockedListen = vi.mocked(listenEvent);
 
-describe("agent-run api", () => {
-  beforeEach(() => {
-    mockedInvoke.mockReset();
-    mockedListen.mockReset();
-  });
+// Mocks are reset between tests via vitest config (`mockReset: true`),
+// so individual cases only need to set up the behavior they rely on.
 
+describe("agent-run api", () => {
   it("startAgentRun forwards the request under an args object", async () => {
     mockedInvoke.mockResolvedValueOnce({ id: "run-1", goal: "hi", agentId: "claude" });
 

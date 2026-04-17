@@ -27,14 +27,14 @@ export function setupTauriListeners(mockListen: Mock) {
   const listeners = new Map<string, Set<(payload: unknown) => void>>();
 
   mockListen.mockImplementation(async (eventName: string, callback: (payload: unknown) => void) => {
-    let set = listeners.get(eventName);
-    if (!set) {
-      set = new Set();
-      listeners.set(eventName, set);
+    const existing = listeners.get(eventName);
+    const target = existing ?? new Set<(payload: unknown) => void>();
+    if (!existing) {
+      listeners.set(eventName, target);
     }
-    set.add(callback);
+    target.add(callback);
     return () => {
-      set!.delete(callback);
+      target.delete(callback);
     };
   });
 
