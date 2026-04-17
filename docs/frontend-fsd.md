@@ -29,6 +29,18 @@ app -> pages -> widgets -> features -> entities -> shared
 
 Same-slice imports can use relative paths for internal implementation files. For example, `features/agent-run/runtime.ts` can import `./model` directly.
 
+Run the automated boundary check before opening frontend architecture PRs:
+
+```bash
+npm run check:fsd
+```
+
+The check validates local static imports under `src/` and fails when:
+
+- a lower layer imports upward, such as `features` importing `widgets`;
+- `shared` imports an app-specific layer;
+- a cross-slice import into `entities`, `features`, or `widgets` bypasses that slice's public `index.ts` API.
+
 ## Public APIs
 
 Each externally consumed slice should expose a small public API through `index.ts`.
