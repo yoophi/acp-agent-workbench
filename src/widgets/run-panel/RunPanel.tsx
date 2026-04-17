@@ -2,7 +2,8 @@ import { Octagon, Play, ShieldCheck } from "lucide-react";
 import type { AgentDescriptor } from "../../entities/agent/model";
 import { Button } from "../../shared/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle, CardTitleBlock } from "../../shared/ui/Card";
-import { Input, inputClassName } from "../../shared/ui/Input";
+import { Input } from "../../shared/ui/Input";
+import { NativeSelect } from "../../shared/ui/NativeSelect";
 import { cn } from "../../shared/lib/utils";
 
 type RunPanelProps = {
@@ -58,7 +59,7 @@ export function RunPanel({
         <span
           className={cn(
             "h-2.5 w-2.5 rounded-full bg-muted-foreground/40",
-            isRunning && "bg-primary shadow-[0_0_0_5px_hsl(var(--primary)/0.14)]",
+            isRunning && "bg-primary shadow-status",
           )}
           aria-label={isRunning ? "Running" : "Idle"}
         />
@@ -67,17 +68,13 @@ export function RunPanel({
       <CardContent className="grid gap-4 pt-6">
         <label className="grid gap-2">
           <span className="text-sm font-medium">Agent</span>
-          <select
-            className={inputClassName}
-            value={selectedAgentId}
-            onChange={(event) => onSelectAgent(event.target.value)}
-          >
+          <NativeSelect value={selectedAgentId} onChange={(event) => onSelectAgent(event.target.value)}>
             {agents.map((agent) => (
               <option key={agent.id} value={agent.id}>
                 {agent.label}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
 
         <label className="grid gap-2">
@@ -128,7 +125,7 @@ export function RunPanel({
         </label>
 
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-          <Button type="button" icon={<Play size={17} />} disabled={isRunning} onClick={onRun}>
+          <Button type="button" variant="primary" icon={<Play size={17} />} disabled={isRunning} onClick={onRun}>
             {isRunning ? "Running" : "Run"}
           </Button>
           <Button type="button" variant="secondary" icon={<Octagon size={16} />} disabled={!isRunning} onClick={onCancel}>

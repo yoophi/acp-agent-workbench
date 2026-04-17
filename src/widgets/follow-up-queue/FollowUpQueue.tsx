@@ -26,7 +26,7 @@ export function FollowUpQueue({ items, awaitingResponse, onCancel }: FollowUpQue
           {items.length}
         </Badge>
       </CardHeader>
-      <CardContent className="pt-6">
+      <CardContent>
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
           {items.map((item, index) => (
             <li key={item.id} className="flex items-start gap-3 rounded-lg border bg-muted/30 p-3">

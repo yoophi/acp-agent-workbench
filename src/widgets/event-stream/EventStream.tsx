@@ -221,12 +221,12 @@ function toneClassName(item: TimelineItem) {
     case "success":
       return "border-l-primary";
     case "warning":
-      return "border-l-amber-500";
+      return "border-l-warning";
     case "danger":
       return "border-l-destructive";
     case "info":
     default:
-      return "border-l-sky-600";
+      return "border-l-info";
   }
 }
 

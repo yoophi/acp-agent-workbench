@@ -58,7 +58,7 @@ export function FollowUpComposer({
           spellCheck={false}
         />
         <div className="flex justify-end">
-          <Button type="button" icon={<Send size={16} />} disabled={!canSubmit} onClick={onSend}>
+          <Button type="button" variant="primary" icon={<Send size={16} />} disabled={!canSubmit} onClick={onSend}>
             {sendLabel}
           </Button>
         </div>
