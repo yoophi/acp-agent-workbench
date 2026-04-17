@@ -43,7 +43,15 @@ npm install
 ## 개발 실행
 
 ```sh
-npm run tauri dev
+npm run tauri:dev
+```
+
+`npm run tauri:dev`는 `1420`부터 사용 가능한 포트를 찾아 Tauri의 `devUrl`과 Vite 개발 서버 포트를 함께 설정합니다. 따라서 이미 개발용 앱이 떠 있어도 다른 포트로 추가 인스턴스를 실행할 수 있습니다.
+
+특정 시작 포트를 지정하려면 다음처럼 실행합니다.
+
+```sh
+TAURI_DEV_PORT=1430 npm run tauri:dev
 ```
 
 프론트엔드만 실행하려면 다음 명령을 사용할 수 있습니다.
@@ -82,7 +90,7 @@ npm run tauri build
 `ACP_AGENT_CATALOG_PATH` 환경 변수에 JSON 파일 경로를 지정하면 기본 에이전트 목록 대신 해당 파일을 읽습니다.
 
 ```sh
-ACP_AGENT_CATALOG_PATH=/path/to/agents.json npm run tauri dev
+ACP_AGENT_CATALOG_PATH=/path/to/agents.json npm run tauri:dev
 ```
 
 파일 형식은 다음과 같습니다.
