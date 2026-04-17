@@ -37,7 +37,12 @@ pub async fn start_agent_run(
     state: State<'_, AppState>,
     request: AgentRunRequest,
 ) -> Result<AgentRun, String> {
-    let run = AgentRun::new(request.goal.clone(), request.agent_id.clone());
+    let run = match request.run_id.clone() {
+        Some(id) if !id.trim().is_empty() => {
+            AgentRun::with_id(id, request.goal.clone(), request.agent_id.clone())
+        }
+        _ => AgentRun::new(request.goal.clone(), request.agent_id.clone()),
+    };
     let run_for_task = run.clone();
     let sink = TauriRunEventSink::new(app);
     let permissions = state.permissions();
@@ -45,7 +50,7 @@ pub async fn start_agent_run(
     let state_for_task = state_handle.clone();
 
     state_handle
-        .reserve_run_if_idle(run.id.clone())
+        .reserve_run(run.id.clone())
         .await
         .map_err(|err| err.to_string())?;
 
@@ -189,15 +194,17 @@ pub async fn cancel_agent_run(
     run_id: String,
 ) -> Result<(), String> {
     let cancelled = state.cancel_run(&run_id).await;
-    if cancelled {
-        TauriRunEventSink::new(app).emit(
-            &run_id,
-            RunEvent::Lifecycle {
-                status: LifecycleStatus::Cancelled,
-                message: "run cancelled".into(),
+    TauriRunEventSink::new(app).emit(
+        &run_id,
+        RunEvent::Lifecycle {
+            status: LifecycleStatus::Cancelled,
+            message: if cancelled {
+                "run cancelled".into()
+            } else {
+                "run was already terminated".into()
             },
-        );
-    }
+        },
+    );
     Ok(())
 }
 
