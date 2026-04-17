@@ -54,5 +54,22 @@ export const useAgentRunStore = create<AgentRunState>((set) => ({
   setFilter: (filter) => set({ filter }),
   beginRun: () => set({ activeRunId: null, isRunning: true, items: [], error: null }),
   resetTimeline: () => set({ items: [] }),
-  appendItem: (item) => set((state) => ({ items: [...state.items, item] })),
+  appendItem: (item) =>
+    set((state) => {
+      const previous = state.items[state.items.length - 1];
+      if (previous?.event.type === "agentMessage" && item.event.type === "agentMessage") {
+        const mergedText = `${previous.event.text}${item.event.text}`;
+        return {
+          items: [
+            ...state.items.slice(0, -1),
+            {
+              ...previous,
+              body: `${previous.body}${item.body}`,
+              event: { ...previous.event, text: mergedText },
+            },
+          ],
+        };
+      }
+      return { items: [...state.items, item] };
+    }),
 }));

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { eventGroups } from "../../entities/message/format";
 import type { EventGroup, TimelineItem } from "../../entities/message/model";
 import { respondAgentPermission } from "../../shared/api/tauri";
@@ -17,7 +19,7 @@ export function EventStream({ items, filter, onFilterChange, onError }: EventStr
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [items.length]);
+  }, [items]);
 
   useEffect(() => {
     setPendingPermissionIds((current) => {
@@ -62,7 +64,7 @@ export function EventStream({ items, filter, onFilterChange, onError }: EventStr
                 <span>{item.group}</span>
                 <strong>{item.title}</strong>
               </div>
-              <pre>{item.body}</pre>
+              {item.group === "assistant/message" ? <StreamingMarkdown content={item.body} /> : <pre>{item.body}</pre>}
               {item.event.type === "permission" && item.event.requiresResponse && item.event.permissionId ? (
                 <div className="permission-actions">
                   <button
@@ -88,6 +90,39 @@ export function EventStream({ items, filter, onFilterChange, onError }: EventStr
       </div>
     </section>
   );
+}
+
+function StreamingMarkdown({ content }: { content: string }) {
+  return (
+    <div className="markdown-stream">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          pre: ({ children, ...props }) => (
+            <pre className="markdown-code" {...props}>
+              {children}
+            </pre>
+          ),
+          a: ({ children, ...props }) => (
+            <a rel="noreferrer" target="_blank" {...props}>
+              {children}
+            </a>
+          ),
+        }}
+      >
+        {normalizeStreamingMarkdown(content)}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
+function normalizeStreamingMarkdown(content: string) {
+  const fenceMatches = content.match(/```/g);
+  if (fenceMatches && fenceMatches.length % 2 === 1) {
+    const suffix = content.endsWith("\n") ? "```" : "\n```";
+    return `${content}${suffix}`;
+  }
+  return content;
 }
 
 function findPermissionOption(item: TimelineItem, mode: "allow" | "reject") {
