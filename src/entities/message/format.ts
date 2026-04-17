@@ -1,5 +1,5 @@
 import type { EventGroup, RunEvent, TimelineItem } from "./model";
-import { stripAnsi } from "../../shared/lib/ansi";
+import { stripAnsi } from "../../shared/lib";
 
 export function toTimelineItem(runId: string, event: RunEvent): TimelineItem {
   const createdAt = Date.now();

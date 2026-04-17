@@ -1,8 +1,6 @@
 import { X } from "lucide-react";
-import type { FollowUpQueueItem } from "../../features/agent-run/model";
-import { Badge } from "../../shared/ui/Badge";
-import { Button } from "../../shared/ui/Button";
-import { Card, CardContent, CardHeader, CardTitle, CardTitleBlock } from "../../shared/ui/Card";
+import type { FollowUpQueueItem } from "../../features/agent-run";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, CardTitleBlock } from "../../shared/ui";
 
 type FollowUpQueueProps = {
   items: FollowUpQueueItem[];
