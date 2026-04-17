@@ -65,9 +65,7 @@ pub async fn send_prompt_to_run(
     let sink = TauriRunEventSink::new(app);
     let registry = state.inner().clone();
     SendPromptUseCase::new(registry)
-        .execute(sink, run_id, prompt, |session, sink, text| async move {
-            session.send_prompt(&sink, text).await
-        })
+        .execute(sink, run_id, prompt)
         .await
 }
 

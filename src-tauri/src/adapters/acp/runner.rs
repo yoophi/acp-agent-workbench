@@ -22,6 +22,7 @@ use crate::{
     },
     ports::{
         agent_catalog::AgentCatalog, event_sink::RunEventSink, permission::PermissionDecisionPort,
+        session_handle::SessionHandle,
     },
 };
 
@@ -271,7 +272,7 @@ where
             let run_id_for_prompt = run_id.clone();
             tokio::spawn(async move {
                 if let Err(err) = session_for_prompt
-                    .send_prompt(&sink_for_prompt, initial_goal)
+                    .send_prompt(sink_for_prompt.clone(), initial_goal)
                     .await
                 {
                     sink_for_prompt.emit(
@@ -349,8 +350,10 @@ impl AcpSession {
     pub async fn session_id(&self) -> String {
         self.session_id.lock().await.clone()
     }
+}
 
-    pub async fn send_prompt<S>(&self, sink: &S, text: String) -> Result<String>
+impl SessionHandle for AcpSession {
+    async fn send_prompt<S>(&self, sink: S, text: String) -> Result<String>
     where
         S: RunEventSink,
     {

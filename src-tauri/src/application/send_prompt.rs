@@ -1,24 +1,20 @@
-use std::{future::Future, sync::Arc};
-
-use anyhow::Result;
-
 use crate::{
     domain::events::RunEvent,
-    ports::{event_sink::RunEventSink, session_registry::SessionRegistry},
+    ports::{
+        event_sink::RunEventSink, session_handle::SessionHandle,
+        session_registry::SessionRegistry,
+    },
 };
 
 /// Dispatch a follow-up prompt to an active run.
 ///
-/// The actual prompt transport is provided by the caller as a closure so
-/// the use case stays independent of the concrete session adapter. Errors
-/// from the dispatch are surfaced to the run event stream instead of being
-/// returned to the command caller, which matches the behavior of the
-/// previous inline implementation (the command returns as soon as the
-/// prompt is accepted; failures arrive asynchronously on the event
-/// stream).
+/// The use case looks up the active session via the registry port and
+/// delegates prompt delivery to `SessionHandle::send_prompt`, so the
+/// command handler stays independent of the ACP adapter.
 pub struct SendPromptUseCase<R>
 where
     R: SessionRegistry,
+    R::Session: SessionHandle,
 {
     registry: R,
 }
@@ -26,22 +22,20 @@ where
 impl<R> SendPromptUseCase<R>
 where
     R: SessionRegistry,
+    R::Session: SessionHandle,
 {
     pub fn new(registry: R) -> Self {
         Self { registry }
     }
 
-    pub async fn execute<S, F, Fut>(
+    pub async fn execute<S>(
         self,
         sink: S,
         run_id: String,
         prompt: String,
-        dispatch: F,
     ) -> Result<(), String>
     where
         S: RunEventSink,
-        F: FnOnce(Arc<R::Session>, S, String) -> Fut + Send + 'static,
-        Fut: Future<Output = Result<String>> + Send + 'static,
     {
         let trimmed = prompt.trim().to_string();
         if trimmed.is_empty() {
@@ -54,7 +48,7 @@ where
             .ok_or_else(|| "agent run is not active".to_string())?;
         let sink_for_task = sink.clone();
         tokio::spawn(async move {
-            if let Err(err) = dispatch(session, sink_for_task.clone(), trimmed).await {
+            if let Err(err) = session.send_prompt(sink_for_task.clone(), trimmed).await {
                 sink_for_task.emit(
                     &run_id,
                     RunEvent::Error {
@@ -74,15 +68,33 @@ mod tests {
     use anyhow::{Result, anyhow};
     use std::{
         collections::HashMap,
-        sync::{
-            Arc, Mutex as StdMutex,
-            atomic::{AtomicUsize, Ordering},
-        },
+        sync::{Arc, Mutex as StdMutex},
     };
     use tokio::sync::{Mutex, Notify};
     use tokio::task::JoinHandle;
 
-    struct FakeSession;
+    enum FakeBehavior {
+        Ok,
+        Err,
+    }
+
+    struct FakeSession {
+        behavior: FakeBehavior,
+        done: Arc<Notify>,
+    }
+
+    impl SessionHandle for FakeSession {
+        async fn send_prompt<S>(&self, _sink: S, _text: String) -> Result<String>
+        where
+            S: RunEventSink,
+        {
+            self.done.notify_one();
+            match self.behavior {
+                FakeBehavior::Ok => Ok("end_turn".into()),
+                FakeBehavior::Err => Err(anyhow!("dispatch exploded")),
+            }
+        }
+    }
 
     #[derive(Clone, Default)]
     struct FakeRegistry {
@@ -90,13 +102,17 @@ mod tests {
     }
 
     impl FakeRegistry {
-        async fn with_session(run_id: &str) -> Self {
+        async fn with_session(run_id: &str, behavior: FakeBehavior) -> (Self, Arc<Notify>) {
             let reg = Self::default();
-            reg.sessions
-                .lock()
-                .await
-                .insert(run_id.to_string(), Arc::new(FakeSession));
-            reg
+            let done = Arc::new(Notify::new());
+            reg.sessions.lock().await.insert(
+                run_id.to_string(),
+                Arc::new(FakeSession {
+                    behavior,
+                    done: done.clone(),
+                }),
+            );
+            (reg, done)
         }
     }
 
@@ -140,21 +156,13 @@ mod tests {
     async fn rejects_empty_prompt_without_touching_registry() {
         let registry = FakeRegistry::default();
         let sink = CollectingSink::default();
-        let invoked = Arc::new(AtomicUsize::new(0));
-        let invoked_clone = invoked.clone();
 
         let result = SendPromptUseCase::new(registry)
-            .execute(sink.clone(), "run-a".into(), "   ".into(), move |_, _, _| {
-                let invoked = invoked_clone.clone();
-                async move {
-                    invoked.fetch_add(1, Ordering::SeqCst);
-                    Ok::<_, anyhow::Error>(String::new())
-                }
-            })
+            .execute(sink.clone(), "run-a".into(), "   ".into())
             .await;
 
         assert_eq!(result, Err("prompt is empty".into()));
-        assert_eq!(invoked.load(Ordering::SeqCst), 0);
+        assert!(sink.events.lock().unwrap().is_empty());
     }
 
     #[tokio::test]
@@ -163,9 +171,7 @@ mod tests {
         let sink = CollectingSink::default();
 
         let result = SendPromptUseCase::new(registry)
-            .execute(sink, "missing".into(), "hi".into(), move |_, _, _| async move {
-                Ok::<_, anyhow::Error>(String::new())
-            })
+            .execute(sink, "missing".into(), "hi".into())
             .await;
 
         assert_eq!(result, Err("agent run is not active".into()));
@@ -173,25 +179,15 @@ mod tests {
 
     #[tokio::test]
     async fn dispatch_error_surfaces_as_run_event_error() {
-        let registry = FakeRegistry::with_session("run-a").await;
+        let (registry, done) = FakeRegistry::with_session("run-a", FakeBehavior::Err).await;
         let sink = CollectingSink::default();
-        let done = Arc::new(Notify::new());
-        let done_clone = done.clone();
 
         SendPromptUseCase::new(registry)
-            .execute(sink.clone(), "run-a".into(), "hi".into(), move |_, _, _| {
-                let done = done_clone.clone();
-                async move {
-                    let err: Result<String> = Err(anyhow!("dispatch exploded"));
-                    done.notify_one();
-                    err
-                }
-            })
+            .execute(sink.clone(), "run-a".into(), "hi".into())
             .await
             .expect("use case should accept the request");
 
         done.notified().await;
-        // Allow the spawned task to finish emitting the error.
         tokio::task::yield_now().await;
         let events = sink.events.lock().unwrap();
         assert!(
