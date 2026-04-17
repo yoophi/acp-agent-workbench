@@ -2,6 +2,8 @@ import { useCallback } from "react";
 import { cancelAgentRun } from "../../shared/api/tauri";
 import { useWorkbenchStore, type TabState } from "../../features/agent-run/model";
 
+const CLOSE_FALLBACK_MS = 5000;
+
 type TabStatus =
   | "idle"
   | "running"
@@ -71,7 +73,16 @@ export function TabBar() {
         useWorkbenchStore.getState().patchTab(tabId, {
           error: `탭 종료 실패: ${String(err)}`,
         });
+        return;
       }
+      setTimeout(() => {
+        const current = useWorkbenchStore.getState().tabs.find((t) => t.id === tabId);
+        if (current && current.closing && !current.error) {
+          useWorkbenchStore.getState().patchTab(tabId, {
+            error: "backend lifecycle 이벤트를 받지 못했습니다. 강제로 닫을 수 있습니다.",
+          });
+        }
+      }, CLOSE_FALLBACK_MS);
       return;
     }
     store.closeTab(tabId);

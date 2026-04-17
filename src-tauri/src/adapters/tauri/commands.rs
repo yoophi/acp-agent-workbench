@@ -194,15 +194,17 @@ pub async fn cancel_agent_run(
     run_id: String,
 ) -> Result<(), String> {
     let cancelled = state.cancel_run(&run_id).await;
-    if cancelled {
-        TauriRunEventSink::new(app).emit(
-            &run_id,
-            RunEvent::Lifecycle {
-                status: LifecycleStatus::Cancelled,
-                message: "run cancelled".into(),
+    TauriRunEventSink::new(app).emit(
+        &run_id,
+        RunEvent::Lifecycle {
+            status: LifecycleStatus::Cancelled,
+            message: if cancelled {
+                "run cancelled".into()
+            } else {
+                "run was already terminated".into()
             },
-        );
-    }
+        },
+    );
     Ok(())
 }
 
