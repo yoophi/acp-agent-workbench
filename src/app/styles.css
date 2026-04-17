@@ -16,10 +16,17 @@
   box-sizing: border-box;
 }
 
+html,
+#root {
+  height: 100%;
+}
+
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
+  height: 100%;
+  min-height: 100dvh;
+  overflow: hidden;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(247, 246, 240, 0)),
     #f7f6f0;
@@ -41,10 +48,14 @@ button:disabled {
 }
 
 .shell {
+  display: flex;
+  flex-direction: column;
   width: min(1480px, 100%);
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   margin: 0 auto;
   padding: 28px;
+  overflow: hidden;
 }
 
 .app-header {
@@ -81,17 +92,19 @@ button:disabled {
 }
 
 .workspace-grid {
+  flex: 1;
   display: grid;
   grid-template-columns: minmax(360px, 0.43fr) minmax(520px, 1fr);
   gap: 18px;
   align-items: stretch;
+  min-height: 0;
 }
 
 .left-column {
   display: grid;
   grid-template-rows: minmax(360px, 1fr) auto;
   gap: 18px;
-  min-height: calc(100vh - 126px);
+  min-height: 0;
 }
 
 .panel {
@@ -271,7 +284,8 @@ button:disabled {
 .stream-panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  min-height: calc(100vh - 126px);
+  min-height: 0;
+  height: 100%;
 }
 
 .stream-heading {
@@ -558,8 +572,15 @@ button:disabled {
 }
 
 @media (max-width: 1020px) {
+  body {
+    overflow: auto;
+  }
+
   .shell {
+    height: auto;
+    min-height: 100dvh;
     padding: 18px;
+    overflow: visible;
   }
 
   .app-header {
