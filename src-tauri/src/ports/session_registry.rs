@@ -34,6 +34,4 @@ pub trait SessionRegistry: Clone + Send + Sync + 'static {
     fn finish_run(&self, run_id: &str) -> impl Future<Output = ()> + Send;
 
     fn cancel_run(&self, run_id: &str) -> impl Future<Output = bool> + Send;
-
-    fn active_run_count(&self) -> impl Future<Output = usize> + Send;
 }

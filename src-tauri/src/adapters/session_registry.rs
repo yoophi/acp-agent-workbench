@@ -124,7 +124,11 @@ impl SessionRegistry for AppState {
         cancelled
     }
 
-    async fn active_run_count(&self) -> usize {
+}
+
+#[cfg(test)]
+impl AppState {
+    pub async fn active_run_count(&self) -> usize {
         self.runs.lock().await.len()
     }
 }
