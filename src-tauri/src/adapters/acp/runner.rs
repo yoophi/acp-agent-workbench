@@ -10,7 +10,8 @@ use tokio::{
 
 use crate::{
     adapters::acp::{
-        client::{AcpClient, RpcPeer, lifecycle, read_loop},
+        client::{AcpClient, lifecycle},
+        transport::{RpcPeer, read_loop},
         util::{RpcError, display_command, expand_tilde, normalize_path, rpc_to_anyhow},
     },
     domain::{
@@ -18,7 +19,11 @@ use crate::{
         run::AgentRunRequest,
     },
     ports::{
-        agent_catalog::AgentCatalog, event_sink::RunEventSink, permission::PermissionDecisionPort,
+        agent_catalog::AgentCatalog,
+        event_sink::RunEventSink,
+        permission::PermissionDecisionPort,
+        session_handle::SessionHandle,
+        session_launcher::{AbortFuture, DriverFuture, LaunchedSession, RunCommander, SessionLauncher},
     },
 };
 
@@ -197,6 +202,149 @@ pub struct AcpSessionSetup {
     pub stderr_task: Option<JoinHandle<()>>,
 }
 
+impl<C, P> SessionLauncher for AcpAgentRunner<C, P>
+where
+    C: AgentCatalog,
+    P: PermissionDecisionPort,
+{
+    type Session = AcpSession;
+
+    async fn launch<S>(
+        self,
+        request: AgentRunRequest,
+        run_id: String,
+        sink: S,
+    ) -> Result<LaunchedSession<AcpSession>>
+    where
+        S: RunEventSink,
+    {
+        let setup = self
+            .start_session(&request, run_id.clone(), sink.clone())
+            .await?;
+        let AcpSessionSetup {
+            session,
+            child,
+            read_task,
+            stderr_task,
+        } = setup;
+
+        let commander = AcpRunCommander {
+            child,
+            read_task,
+            stderr_task,
+            session: session.clone(),
+            sink,
+            run_id,
+            initial_goal: request.goal,
+        };
+
+        Ok(LaunchedSession {
+            session,
+            commander: Box::new(commander),
+        })
+    }
+}
+
+struct AcpRunCommander<S>
+where
+    S: RunEventSink,
+{
+    child: Child,
+    read_task: JoinHandle<Result<()>>,
+    stderr_task: Option<JoinHandle<()>>,
+    session: Arc<AcpSession>,
+    sink: S,
+    run_id: String,
+    initial_goal: String,
+}
+
+impl<S> RunCommander for AcpRunCommander<S>
+where
+    S: RunEventSink,
+{
+    fn run_to_completion(self: Box<Self>) -> DriverFuture {
+        Box::pin(async move {
+            let Self {
+                mut child,
+                read_task,
+                stderr_task,
+                session,
+                sink,
+                run_id,
+                initial_goal,
+            } = *self;
+
+            let session_for_prompt = session.clone();
+            let sink_for_prompt = sink.clone();
+            let run_id_for_prompt = run_id.clone();
+            tokio::spawn(async move {
+                if let Err(err) = session_for_prompt
+                    .send_prompt(sink_for_prompt.clone(), initial_goal)
+                    .await
+                {
+                    sink_for_prompt.emit(
+                        &run_id_for_prompt,
+                        RunEvent::Error {
+                            message: err.to_string(),
+                        },
+                    );
+                }
+            });
+
+            match child.wait().await {
+                Ok(status) => {
+                    if let Some(code) = status.code() {
+                        if code != 0 {
+                            sink.emit(
+                                &run_id,
+                                RunEvent::Diagnostic {
+                                    message: format!("agent process exited with code {code}"),
+                                },
+                            );
+                        }
+                    }
+                }
+                Err(err) => {
+                    sink.emit(
+                        &run_id,
+                        RunEvent::Diagnostic {
+                            message: format!("failed to wait for agent process: {err}"),
+                        },
+                    );
+                }
+            }
+
+            read_task.abort();
+            let _ = read_task.await;
+            if let Some(task) = stderr_task {
+                task.abort();
+            }
+
+            sink.emit(
+                &run_id,
+                lifecycle(LifecycleStatus::Completed, "agent exited"),
+            );
+        })
+    }
+
+    fn abort(self: Box<Self>) -> AbortFuture {
+        Box::pin(async move {
+            let Self {
+                mut child,
+                read_task,
+                stderr_task,
+                ..
+            } = *self;
+            let _ = child.start_kill();
+            let _ = child.wait().await;
+            read_task.abort();
+            if let Some(task) = stderr_task {
+                task.abort();
+            }
+        })
+    }
+}
+
 pub struct AcpSession {
     pub run_id: String,
     pub peer: RpcPeer,
@@ -209,8 +357,10 @@ impl AcpSession {
     pub async fn session_id(&self) -> String {
         self.session_id.lock().await.clone()
     }
+}
 
-    pub async fn send_prompt<S>(&self, sink: &S, text: String) -> Result<String>
+impl SessionHandle for AcpSession {
+    async fn send_prompt<S>(&self, sink: S, text: String) -> Result<String>
     where
         S: RunEventSink,
     {

@@ -3,8 +3,8 @@ use std::{collections::HashMap, env, sync::Arc};
 use tokio::{sync::Mutex, task::JoinHandle};
 
 use crate::{
-    adapters::acp::runner::AcpSession,
-    ports::permission::{PermissionDecision, PermissionDecisionPort},
+    adapters::{acp::runner::AcpSession, permission_broker::PermissionBroker},
+    ports::session_registry::SessionRegistry,
 };
 
 const MAX_RUNS_ENV: &str = "ACP_WORKBENCH_MAX_RUNS";
@@ -37,6 +37,10 @@ impl AppState {
             max_concurrent_runs,
         }
     }
+
+    pub fn permissions(&self) -> PermissionBroker {
+        self.permissions.clone()
+    }
 }
 
 enum RunSlot {
@@ -49,12 +53,10 @@ struct RunContext {
     session: Option<Arc<AcpSession>>,
 }
 
-impl AppState {
-    pub fn permissions(&self) -> PermissionBroker {
-        self.permissions.clone()
-    }
+impl SessionRegistry for AppState {
+    type Session = AcpSession;
 
-    pub async fn reserve_run(&self, run_id: String) -> Result<()> {
+    async fn reserve_run(&self, run_id: String) -> Result<()> {
         let mut runs = self.runs.lock().await;
         if runs.contains_key(&run_id) {
             return Err(anyhow!("duplicate run id: {run_id}"));
@@ -70,11 +72,7 @@ impl AppState {
         Ok(())
     }
 
-    pub async fn active_run_count(&self) -> usize {
-        self.runs.lock().await.len()
-    }
-
-    pub async fn attach_run_handle(&self, run_id: &str, handle: JoinHandle<()>) -> Result<()> {
+    async fn attach_run_handle(&self, run_id: &str, handle: JoinHandle<()>) -> Result<()> {
         let mut runs = self.runs.lock().await;
         let Some(slot) = runs.get_mut(run_id) else {
             handle.abort();
@@ -87,7 +85,7 @@ impl AppState {
         Ok(())
     }
 
-    pub async fn attach_session(&self, run_id: &str, session: Arc<AcpSession>) -> Result<()> {
+    async fn attach_session(&self, run_id: &str, session: Arc<AcpSession>) -> Result<()> {
         let mut runs = self.runs.lock().await;
         match runs.get_mut(run_id) {
             Some(RunSlot::Running(ctx)) => {
@@ -98,7 +96,7 @@ impl AppState {
         }
     }
 
-    pub async fn active_session(&self, run_id: &str) -> Option<Arc<AcpSession>> {
+    async fn active_session(&self, run_id: &str) -> Option<Arc<AcpSession>> {
         let runs = self.runs.lock().await;
         match runs.get(run_id) {
             Some(RunSlot::Running(ctx)) => ctx.session.clone(),
@@ -106,12 +104,12 @@ impl AppState {
         }
     }
 
-    pub async fn finish_run(&self, run_id: &str) {
+    async fn finish_run(&self, run_id: &str) {
         self.runs.lock().await.remove(run_id);
         self.permissions.clear_run(run_id).await;
     }
 
-    pub async fn cancel_run(&self, run_id: &str) -> bool {
+    async fn cancel_run(&self, run_id: &str) -> bool {
         let cancelled = match self.runs.lock().await.remove(run_id) {
             Some(RunSlot::Running(ctx)) => {
                 ctx.join_handle.abort();
@@ -125,58 +123,20 @@ impl AppState {
         }
         cancelled
     }
+
 }
 
-struct PendingPermission {
-    run_id: String,
-    sender: tokio::sync::oneshot::Sender<PermissionDecision>,
-}
-
-#[derive(Clone, Default)]
-pub struct PermissionBroker {
-    pending: Arc<Mutex<HashMap<String, PendingPermission>>>,
-}
-
-impl PermissionDecisionPort for PermissionBroker {
-    async fn create_waiter(
-        &self,
-        run_id: String,
-        permission_id: String,
-    ) -> tokio::sync::oneshot::Receiver<PermissionDecision> {
-        let (sender, receiver) = tokio::sync::oneshot::channel();
-        self.pending
-            .lock()
-            .await
-            .insert(permission_id, PendingPermission { run_id, sender });
-        receiver
-    }
-
-    async fn respond(&self, permission_id: &str, decision: PermissionDecision) -> Result<()> {
-        let Some(pending) = self.pending.lock().await.remove(permission_id) else {
-            return Err(anyhow!(
-                "unknown or already answered permission: {permission_id}"
-            ));
-        };
-        pending
-            .sender
-            .send(decision)
-            .map_err(|_| anyhow!("permission waiter is no longer active"))
-    }
-}
-
-impl PermissionBroker {
-    pub async fn clear_run(&self, run_id: &str) {
-        self.pending
-            .lock()
-            .await
-            .retain(|_, pending| pending.run_id != run_id);
+#[cfg(test)]
+impl AppState {
+    pub async fn active_run_count(&self) -> usize {
+        self.runs.lock().await.len()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{AppState, PermissionBroker};
-    use crate::ports::permission::{PermissionDecision, PermissionDecisionPort};
+    use super::AppState;
+    use crate::ports::session_registry::SessionRegistry;
 
     #[tokio::test]
     async fn reserve_run_allows_multiple_distinct_run_ids() {
@@ -239,30 +199,5 @@ mod tests {
             .await
             .expect_err("duplicate id must fail");
         assert!(err.to_string().contains("duplicate run id"));
-    }
-
-    #[tokio::test]
-    async fn clearing_one_run_keeps_other_run_permission_waiters() {
-        let broker = PermissionBroker::default();
-        let first = broker
-            .create_waiter("run-a".to_string(), "permission-a".to_string())
-            .await;
-        let second = broker
-            .create_waiter("run-b".to_string(), "permission-b".to_string())
-            .await;
-
-        broker.clear_run("run-a").await;
-
-        assert!(first.await.is_err());
-        broker
-            .respond(
-                "permission-b",
-                PermissionDecision {
-                    option_id: "allow".to_string(),
-                },
-            )
-            .await
-            .expect("second run permission should remain active");
-        assert_eq!(second.await.expect("decision").option_id, "allow");
     }
 }

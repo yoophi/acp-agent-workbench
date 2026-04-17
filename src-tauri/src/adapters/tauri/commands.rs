@@ -2,21 +2,21 @@ use tauri::{AppHandle, State};
 
 use crate::{
     adapters::{
-        acp::{client::lifecycle, runner::AcpAgentRunner},
+        acp::runner::AcpAgentRunner,
         agent_catalog::ConfigurableAgentCatalog,
         fs::LocalGoalFileReader,
-        tauri::{event_sink::TauriRunEventSink, session_state::AppState},
+        session_registry::AppState,
+        tauri::event_sink::TauriRunEventSink,
     },
     application::{
-        list_agents::ListAgentsUseCase, load_goal_file::LoadGoalFileUseCase,
-        respond_permission::RespondPermissionUseCase,
+        cancel_agent_run::CancelAgentRunUseCase, list_agents::ListAgentsUseCase,
+        load_goal_file::LoadGoalFileUseCase, respond_permission::RespondPermissionUseCase,
+        send_prompt::SendPromptUseCase, start_agent_run::StartAgentRunUseCase,
     },
     domain::{
         agent::AgentDescriptor,
-        events::{LifecycleStatus, RunEvent},
         run::{AgentRun, AgentRunRequest},
     },
-    ports::event_sink::RunEventSink,
 };
 
 #[tauri::command]
@@ -37,124 +37,14 @@ pub async fn start_agent_run(
     state: State<'_, AppState>,
     request: AgentRunRequest,
 ) -> Result<AgentRun, String> {
-    let run = match request.run_id.clone() {
-        Some(id) if !id.trim().is_empty() => {
-            AgentRun::with_id(id, request.goal.clone(), request.agent_id.clone())
-        }
-        _ => AgentRun::new(request.goal.clone(), request.agent_id.clone()),
-    };
-    let run_for_task = run.clone();
     let sink = TauriRunEventSink::new(app);
     let permissions = state.permissions();
-    let state_handle = state.inner().clone();
-    let state_for_task = state_handle.clone();
+    let registry = state.inner().clone();
+    let runner = AcpAgentRunner::new(ConfigurableAgentCatalog::from_env(), permissions);
 
-    state_handle
-        .reserve_run(run.id.clone())
+    StartAgentRunUseCase::new(registry)
+        .execute(runner, sink, request)
         .await
-        .map_err(|err| err.to_string())?;
-
-    let handle = tokio::spawn(async move {
-        let runner = AcpAgentRunner::new(ConfigurableAgentCatalog::from_env(), permissions);
-        let setup = match runner
-            .start_session(&request, run_for_task.id.clone(), sink.clone())
-            .await
-        {
-            Ok(setup) => setup,
-            Err(err) => {
-                sink.emit(
-                    &run_for_task.id,
-                    RunEvent::Error {
-                        message: err.to_string(),
-                    },
-                );
-                state_for_task.finish_run(&run_for_task.id).await;
-                return;
-            }
-        };
-        let session = setup.session;
-        let mut child = setup.child;
-        let read_task = setup.read_task;
-        let stderr_task = setup.stderr_task;
-
-        if let Err(err) = state_for_task
-            .attach_session(&run_for_task.id, session.clone())
-            .await
-        {
-            sink.emit(
-                &run_for_task.id,
-                RunEvent::Diagnostic {
-                    message: err.to_string(),
-                },
-            );
-            let _ = child.start_kill();
-            let _ = child.wait().await;
-            read_task.abort();
-            if let Some(task) = stderr_task {
-                task.abort();
-            }
-            state_for_task.finish_run(&run_for_task.id).await;
-            return;
-        }
-
-        let session_for_prompt = session.clone();
-        let sink_for_prompt = sink.clone();
-        let run_id_for_prompt = run_for_task.id.clone();
-        tokio::spawn(async move {
-            if let Err(err) = session_for_prompt
-                .send_prompt(&sink_for_prompt, request.goal)
-                .await
-            {
-                sink_for_prompt.emit(
-                    &run_id_for_prompt,
-                    RunEvent::Error {
-                        message: err.to_string(),
-                    },
-                );
-            }
-        });
-
-        match child.wait().await {
-            Ok(status) => {
-                if let Some(code) = status.code() {
-                    if code != 0 {
-                        sink.emit(
-                            &run_for_task.id,
-                            RunEvent::Diagnostic {
-                                message: format!("agent process exited with code {code}"),
-                            },
-                        );
-                    }
-                }
-            }
-            Err(err) => {
-                sink.emit(
-                    &run_for_task.id,
-                    RunEvent::Diagnostic {
-                        message: format!("failed to wait for agent process: {err}"),
-                    },
-                );
-            }
-        }
-
-        read_task.abort();
-        let _ = read_task.await;
-        if let Some(task) = stderr_task {
-            task.abort();
-        }
-
-        sink.emit(
-            &run_for_task.id,
-            lifecycle(LifecycleStatus::Completed, "agent exited"),
-        );
-        state_for_task.finish_run(&run_for_task.id).await;
-    });
-    state_handle
-        .attach_run_handle(&run.id, handle)
-        .await
-        .map_err(|err| err.to_string())?;
-
-    Ok(run)
 }
 
 #[tauri::command]
@@ -164,27 +54,11 @@ pub async fn send_prompt_to_run(
     run_id: String,
     prompt: String,
 ) -> Result<(), String> {
-    let trimmed = prompt.trim();
-    if trimmed.is_empty() {
-        return Err("prompt is empty".into());
-    }
-    let session = state
-        .active_session(&run_id)
-        .await
-        .ok_or_else(|| "agent run is not active".to_string())?;
     let sink = TauriRunEventSink::new(app);
-    let prompt_text = trimmed.to_string();
-    tokio::spawn(async move {
-        if let Err(err) = session.send_prompt(&sink, prompt_text).await {
-            sink.emit(
-                &session.run_id,
-                RunEvent::Error {
-                    message: err.to_string(),
-                },
-            );
-        }
-    });
-    Ok(())
+    let registry = state.inner().clone();
+    SendPromptUseCase::new(registry)
+        .execute(sink, run_id, prompt)
+        .await
 }
 
 #[tauri::command]
@@ -193,18 +67,11 @@ pub async fn cancel_agent_run(
     state: State<'_, AppState>,
     run_id: String,
 ) -> Result<(), String> {
-    let cancelled = state.cancel_run(&run_id).await;
-    TauriRunEventSink::new(app).emit(
-        &run_id,
-        RunEvent::Lifecycle {
-            status: LifecycleStatus::Cancelled,
-            message: if cancelled {
-                "run cancelled".into()
-            } else {
-                "run was already terminated".into()
-            },
-        },
-    );
+    let sink = TauriRunEventSink::new(app);
+    let registry = state.inner().clone();
+    CancelAgentRunUseCase::new(registry)
+        .execute(sink, run_id)
+        .await;
     Ok(())
 }
 
