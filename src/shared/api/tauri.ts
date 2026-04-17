@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
+// Keep shared/api as a domain-agnostic transport seam; feature slices own typed command wrappers.
 export function invokeCommand<T>(command: string, args?: Record<string, unknown>) {
   return invoke<T>(command, args);
 }
