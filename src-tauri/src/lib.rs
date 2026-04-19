@@ -8,7 +8,8 @@ use adapters::{
     storage_state::StorageState,
     tauri::commands::{
         cancel_agent_run, create_saved_prompt, delete_saved_prompt, get_workspace_git_status,
-        list_agents, list_saved_prompts, list_workspace_checkouts, list_workspaces, load_goal_file,
+        get_window_bootstrap, list_agents, list_saved_prompts, list_workbench_windows,
+        list_workspace_checkouts, list_workspaces, load_goal_file, open_workbench_window,
         record_saved_prompt_used, refresh_workspace_checkout, register_workspace_from_path,
         remove_workspace, resolve_workspace_workdir, respond_agent_permission, send_prompt_to_run,
         start_agent_run, summarize_workspace_diff, update_saved_prompt,
@@ -29,6 +30,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_agents,
             load_goal_file,
+            get_window_bootstrap,
+            list_workbench_windows,
+            open_workbench_window,
             start_agent_run,
             send_prompt_to_run,
             cancel_agent_run,
