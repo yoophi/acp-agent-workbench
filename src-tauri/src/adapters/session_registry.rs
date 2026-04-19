@@ -1,5 +1,9 @@
 use anyhow::{Result, anyhow};
-use std::{collections::HashMap, env, sync::Arc};
+use std::{
+    collections::HashMap,
+    env,
+    sync::{Arc, Mutex as StdMutex},
+};
 use tokio::{sync::Mutex, task::JoinHandle};
 
 use crate::{
@@ -19,6 +23,7 @@ fn read_max_runs_from_env() -> Option<usize> {
 #[derive(Clone)]
 pub struct AppState {
     runs: Arc<Mutex<HashMap<String, RunSlot>>>,
+    run_owners: Arc<StdMutex<HashMap<String, String>>>,
     permissions: PermissionBroker,
     max_concurrent_runs: Option<usize>,
 }
@@ -33,6 +38,7 @@ impl AppState {
     pub fn with_max_concurrent_runs(max_concurrent_runs: Option<usize>) -> Self {
         Self {
             runs: Arc::default(),
+            run_owners: Arc::default(),
             permissions: PermissionBroker::default(),
             max_concurrent_runs,
         }
@@ -40,6 +46,39 @@ impl AppState {
 
     pub fn permissions(&self) -> PermissionBroker {
         self.permissions.clone()
+    }
+
+    pub fn owner_of(&self, run_id: &str) -> Option<String> {
+        self.run_owners
+            .lock()
+            .expect("run owner mutex poisoned")
+            .get(run_id)
+            .cloned()
+    }
+
+    #[allow(dead_code)]
+    pub async fn transfer_run(&self, run_id: &str, new_owner: String) -> Result<()> {
+        if !self.runs.lock().await.contains_key(run_id) {
+            return Err(anyhow!("agent run not found: {run_id}"));
+        }
+        self.run_owners
+            .lock()
+            .expect("run owner mutex poisoned")
+            .insert(run_id.to_string(), new_owner);
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub async fn runs_owned_by(&self, owner: &str) -> Vec<String> {
+        let mut runs: Vec<_> = self
+            .run_owners
+            .lock()
+            .expect("run owner mutex poisoned")
+            .iter()
+            .filter_map(|(run_id, label)| (label == owner).then(|| run_id.clone()))
+            .collect();
+        runs.sort();
+        runs
     }
 }
 
@@ -56,7 +95,11 @@ struct RunContext {
 impl SessionRegistry for AppState {
     type Session = AcpSession;
 
-    async fn reserve_run(&self, run_id: String) -> Result<(), ReserveRunError> {
+    async fn reserve_run(
+        &self,
+        run_id: String,
+        owner: Option<String>,
+    ) -> Result<(), ReserveRunError> {
         let mut runs = self.runs.lock().await;
         if runs.contains_key(&run_id) {
             return Err(ReserveRunError::DuplicateRunId { run_id });
@@ -66,7 +109,17 @@ impl SessionRegistry for AppState {
                 return Err(ReserveRunError::ConcurrentLimit { limit });
             }
         }
-        runs.insert(run_id, RunSlot::Reserved);
+        runs.insert(run_id.clone(), RunSlot::Reserved);
+        drop(runs);
+        if let Some(owner) = owner
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+        {
+            self.run_owners
+                .lock()
+                .expect("run owner mutex poisoned")
+                .insert(run_id, owner);
+        }
         Ok(())
     }
 
@@ -106,6 +159,10 @@ impl SessionRegistry for AppState {
 
     async fn finish_run(&self, run_id: &str) {
         self.runs.lock().await.remove(run_id);
+        self.run_owners
+            .lock()
+            .expect("run owner mutex poisoned")
+            .remove(run_id);
         self.permissions.clear_run(run_id).await;
     }
 
@@ -118,6 +175,12 @@ impl SessionRegistry for AppState {
             Some(RunSlot::Reserved) => true,
             None => false,
         };
+        if cancelled {
+            self.run_owners
+                .lock()
+                .expect("run owner mutex poisoned")
+                .remove(run_id);
+        }
         if cancelled {
             self.permissions.clear_run(run_id).await;
         }
@@ -141,11 +204,11 @@ mod tests {
     async fn reserve_run_allows_multiple_distinct_run_ids() {
         let state = AppState::default();
         state
-            .reserve_run("run-a".into())
+            .reserve_run("run-a".into(), None)
             .await
             .expect("first run should reserve");
         state
-            .reserve_run("run-b".into())
+            .reserve_run("run-b".into(), None)
             .await
             .expect("second concurrent run should reserve");
         assert_eq!(state.active_run_count().await, 2);
@@ -154,9 +217,9 @@ mod tests {
     #[tokio::test]
     async fn reserve_run_rejects_duplicate_run_id() {
         let state = AppState::default();
-        state.reserve_run("run-a".into()).await.unwrap();
+        state.reserve_run("run-a".into(), None).await.unwrap();
         let err = state
-            .reserve_run("run-a".into())
+            .reserve_run("run-a".into(), None)
             .await
             .expect_err("duplicate reservation must fail");
         assert_eq!(
@@ -170,8 +233,8 @@ mod tests {
     #[tokio::test]
     async fn cancel_run_does_not_affect_other_runs() {
         let state = AppState::default();
-        state.reserve_run("run-a".into()).await.unwrap();
-        state.reserve_run("run-b".into()).await.unwrap();
+        state.reserve_run("run-a".into(), None).await.unwrap();
+        state.reserve_run("run-b".into(), None).await.unwrap();
         assert!(state.cancel_run("run-a").await);
         assert_eq!(state.active_run_count().await, 1);
         assert!(state.cancel_run("run-b").await);
@@ -181,15 +244,15 @@ mod tests {
     #[tokio::test]
     async fn reserve_run_respects_injected_concurrent_limit() {
         let state = AppState::with_max_concurrent_runs(Some(1));
-        state.reserve_run("run-a".into()).await.unwrap();
+        state.reserve_run("run-a".into(), None).await.unwrap();
         let err = state
-            .reserve_run("run-b".into())
+            .reserve_run("run-b".into(), None)
             .await
             .expect_err("second run should be rejected by the limit");
         assert_eq!(err, ReserveRunError::ConcurrentLimit { limit: 1 });
         assert!(state.cancel_run("run-a").await);
         state
-            .reserve_run("run-b".into())
+            .reserve_run("run-b".into(), None)
             .await
             .expect("limit should free up after cancel");
     }
@@ -197,9 +260,9 @@ mod tests {
     #[tokio::test]
     async fn reserve_run_duplicate_id_is_rejected_before_limit_check() {
         let state = AppState::with_max_concurrent_runs(Some(2));
-        state.reserve_run("run-a".into()).await.unwrap();
+        state.reserve_run("run-a".into(), None).await.unwrap();
         let err = state
-            .reserve_run("run-a".into())
+            .reserve_run("run-a".into(), None)
             .await
             .expect_err("duplicate id must fail");
         assert_eq!(
@@ -208,5 +271,30 @@ mod tests {
                 run_id: "run-a".into()
             }
         );
+    }
+
+    #[tokio::test]
+    async fn tracks_and_transfers_run_owners() {
+        let state = AppState::default();
+        state
+            .reserve_run("run-a".into(), Some("workbench-a".into()))
+            .await
+            .unwrap();
+
+        assert_eq!(state.owner_of("run-a").as_deref(), Some("workbench-a"));
+        assert_eq!(
+            state.runs_owned_by("workbench-a").await,
+            vec!["run-a".to_string()]
+        );
+
+        state
+            .transfer_run("run-a", "workbench-b".into())
+            .await
+            .unwrap();
+        assert_eq!(state.owner_of("run-a").as_deref(), Some("workbench-b"));
+        assert!(state.runs_owned_by("workbench-a").await.is_empty());
+
+        state.finish_run("run-a").await;
+        assert_eq!(state.owner_of("run-a"), None);
     }
 }

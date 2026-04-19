@@ -37,6 +37,7 @@ where
         launcher: L,
         sink: S,
         request: AgentRunRequest,
+        owner: Option<String>,
     ) -> Result<AgentRun, StartAgentRunError>
     where
         L: SessionLauncher<Session = R::Session>,
@@ -44,7 +45,7 @@ where
     {
         let run = build_run(&request);
         self.registry
-            .reserve_run(run.id.clone())
+            .reserve_run(run.id.clone(), owner)
             .await
             .map_err(StartAgentRunError::ReserveRun)?;
 
@@ -164,7 +165,11 @@ mod tests {
     impl SessionRegistry for FakeRegistry {
         type Session = FakeSession;
 
-        async fn reserve_run(&self, run_id: String) -> Result<(), ReserveRunError> {
+        async fn reserve_run(
+            &self,
+            run_id: String,
+            _owner: Option<String>,
+        ) -> Result<(), ReserveRunError> {
             let mut state = self.inner.lock().await;
             if let Some(error) = state.reserve_run_error.clone() {
                 return Err(error);
@@ -327,7 +332,7 @@ mod tests {
         let launcher = FakeLauncher::success(&c);
 
         let run = StartAgentRunUseCase::new(registry.clone())
-            .execute(launcher, sink.clone(), make_request())
+            .execute(launcher, sink.clone(), make_request(), Some("main".into()))
             .await
             .expect("start should succeed");
 
@@ -359,7 +364,7 @@ mod tests {
         let launcher = FakeLauncher::success(&c);
 
         let result = StartAgentRunUseCase::new(registry.clone())
-            .execute(launcher, sink, make_request())
+            .execute(launcher, sink, make_request(), None)
             .await;
 
         assert!(matches!(
@@ -382,7 +387,7 @@ mod tests {
         let launcher = FakeLauncher::success(&c);
 
         let result = StartAgentRunUseCase::new(registry.clone())
-            .execute(launcher, sink, make_request())
+            .execute(launcher, sink, make_request(), None)
             .await;
 
         assert!(matches!(
@@ -404,7 +409,7 @@ mod tests {
         let launcher = FakeLauncher::success(&c);
 
         let result = StartAgentRunUseCase::new(registry.clone())
-            .execute(launcher, sink, make_request())
+            .execute(launcher, sink, make_request(), None)
             .await;
 
         assert!(matches!(
@@ -425,7 +430,7 @@ mod tests {
         let launcher = FakeLauncher::success(&c);
 
         let run = StartAgentRunUseCase::new(registry.clone())
-            .execute(launcher, sink.clone(), make_request())
+            .execute(launcher, sink.clone(), make_request(), None)
             .await
             .expect("start call itself should succeed");
 
@@ -457,7 +462,7 @@ mod tests {
         let launcher = FakeLauncher::failing(done.clone());
 
         let run = StartAgentRunUseCase::new(registry.clone())
-            .execute(launcher, sink.clone(), make_request())
+            .execute(launcher, sink.clone(), make_request(), None)
             .await
             .expect("start call itself should succeed");
 

@@ -108,6 +108,7 @@ fn next_workbench_window_label(app: &AppHandle) -> String {
 #[tauri::command]
 pub async fn start_agent_run(
     app: AppHandle,
+    window: WebviewWindow,
     state: State<'_, AppState>,
     storage: State<'_, StorageState>,
     mut request: AgentRunRequest,
@@ -139,9 +140,10 @@ pub async fn start_agent_run(
         .await
         .map_err(|err| err.to_string())?;
 
-    let sink = TauriRunEventSink::new(app);
-    let permissions = state.permissions();
+    let owner = window.label().to_string();
     let registry = state.inner().clone();
+    let sink = TauriRunEventSink::new(app, registry.clone());
+    let permissions = state.permissions();
     let runner = AcpAgentRunner::new(
         ConfigurableAgentCatalog::from_env(),
         permissions,
@@ -149,7 +151,7 @@ pub async fn start_agent_run(
     );
 
     StartAgentRunUseCase::new(registry)
-        .execute(runner, sink, request)
+        .execute(runner, sink, request, Some(owner))
         .await
         .map_err(String::from)
 }
@@ -210,8 +212,8 @@ pub async fn send_prompt_to_run(
     run_id: String,
     prompt: String,
 ) -> Result<(), String> {
-    let sink = TauriRunEventSink::new(app);
     let registry = state.inner().clone();
+    let sink = TauriRunEventSink::new(app, registry.clone());
     SendPromptUseCase::new(registry)
         .execute(sink, run_id, prompt)
         .await
@@ -224,8 +226,9 @@ pub async fn cancel_agent_run(
     state: State<'_, AppState>,
     run_id: String,
 ) -> Result<(), String> {
-    let sink = TauriRunEventSink::new(app);
     let registry = state.inner().clone();
+    let owner = registry.owner_of(&run_id);
+    let sink = TauriRunEventSink::with_fallback_owner(app, registry.clone(), owner);
     CancelAgentRunUseCase::new(registry)
         .execute(sink, run_id)
         .await;
