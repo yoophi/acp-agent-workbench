@@ -102,4 +102,27 @@ describe("workspace-scoped run state", () => {
     expect(run.completedAt).toEqual(expect.any(Number));
     expect(run.items.map((item) => item.body)).toEqual(["first reply", "done"]);
   });
+
+  it("keeps failed startup errors on the run before clearing the active run", () => {
+    const tabId = useWorkbenchStore.getState().activeTabId;
+    const store = useWorkbenchStore.getState();
+    store.beginRun(tabId, "run-1");
+    store.patchTab(tabId, { error: "failed to start" });
+    store.endRun(tabId);
+    store.patchTab(tabId, { activeRunId: null });
+
+    const state = useWorkbenchStore.getState();
+    const [run] = selectWorkspaceViewRuns(state, tabId);
+    const view = selectWorkspaceView(state, tabId);
+
+    expect(view?.activeRunId).toBeNull();
+    expect(view?.viewError).toBe("failed to start");
+    expect(run).toMatchObject({
+      id: "run-1",
+      sessionActive: false,
+      awaitingResponse: false,
+      runError: "failed to start",
+    });
+    expect(run.completedAt).toEqual(expect.any(Number));
+  });
 });

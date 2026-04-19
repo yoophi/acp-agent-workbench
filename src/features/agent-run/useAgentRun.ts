@@ -58,13 +58,13 @@ export function useAgentRun(tabId: string) {
       return;
     }
     const sameWorkdirRuns = selectTabList(useWorkbenchStore.getState()).filter(
-        (entry) =>
-          entry.id !== current.id &&
-          entry.sessionActive &&
-          entry.workspaceId === current.workspaceId &&
-          entry.checkoutId === current.checkoutId &&
-          entry.cwd === current.cwd,
-      ).length;
+      (entry) =>
+        entry.id !== current.id &&
+        entry.sessionActive &&
+        entry.workspaceId === current.workspaceId &&
+        entry.checkoutId === current.checkoutId &&
+        entry.cwd === current.cwd,
+    ).length;
     if (
       sameWorkdirRuns > 0 &&
       current.workspaceId &&
@@ -94,9 +94,11 @@ export function useAgentRun(tabId: string) {
     try {
       await startAgentRun(request);
     } catch (err) {
-      useWorkbenchStore.getState().patchTab(tabId, { activeRunId: null });
-      useWorkbenchStore.getState().endRun(tabId);
-      patch({ error: String(err) });
+      const error = String(err);
+      const store = useWorkbenchStore.getState();
+      store.patchTab(tabId, { error });
+      store.endRun(tabId);
+      store.patchTab(tabId, { activeRunId: null });
     }
   }, [tabId, patch]);
 
