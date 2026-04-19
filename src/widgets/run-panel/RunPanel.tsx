@@ -1,9 +1,7 @@
 import { Octagon, Play, ShieldCheck, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AcpSessionRecord } from "../../entities/acp-session";
 import type { AgentDescriptor } from "../../entities/agent";
 import type { RalphLoopSettings, ResumePolicy } from "../../entities/message";
-import { clearAcpSession, listAcpSessions } from "../../features/agent-run";
 import { cn } from "../../shared/lib";
 import { Button, Card, CardContent, CardHeader, CardTitle, CardTitleBlock, Input, NativeSelect } from "../../shared/ui";
 
@@ -12,8 +10,6 @@ type RunPanelProps = {
   selectedAgentId: string;
   onSelectAgent: (id: string) => void;
   selectedAgent?: AgentDescriptor;
-  workspaceId: string | null;
-  checkoutId: string | null;
   cwd: string;
   onCwdChange: (value: string) => void;
   customCommand: string;
@@ -24,6 +20,9 @@ type RunPanelProps = {
   onAutoAllowChange: (value: boolean) => void;
   resumePolicy: ResumePolicy;
   onResumePolicyChange: (value: ResumePolicy) => void;
+  latestAcpSession: AcpSessionRecord | null;
+  acpSessionLoading: boolean;
+  onClearLatestAcpSession: () => void;
   ralphLoop: RalphLoopSettings;
   onRalphLoopChange: (value: RalphLoopSettings) => void;
   idleTimeoutSec: number;
@@ -40,8 +39,6 @@ export function RunPanel({
   selectedAgentId,
   onSelectAgent,
   selectedAgent,
-  workspaceId,
-  checkoutId,
   cwd,
   onCwdChange,
   customCommand,
@@ -52,6 +49,9 @@ export function RunPanel({
   onAutoAllowChange,
   resumePolicy,
   onResumePolicyChange,
+  latestAcpSession,
+  acpSessionLoading,
+  onClearLatestAcpSession,
   ralphLoop,
   onRalphLoopChange,
   idleTimeoutSec,
@@ -62,61 +62,6 @@ export function RunPanel({
   onRun,
   onCancel,
 }: RunPanelProps) {
-  const [sessions, setSessions] = useState<AcpSessionRecord[]>([]);
-  const [sessionsLoading, setSessionsLoading] = useState(false);
-  const [sessionsError, setSessionsError] = useState<string | null>(null);
-  const [clearingSession, setClearingSession] = useState(false);
-
-  const agentCommand = customCommand.trim() || selectedAgent?.command || null;
-  const latestSession = sessions[0] ?? null;
-  const sessionUpdatedAt = useMemo(
-    () => (latestSession ? new Date(latestSession.updatedAt).toLocaleString() : null),
-    [latestSession],
-  );
-
-  const refreshSessions = useCallback(async () => {
-    if (resumePolicy === "fresh" || !selectedAgentId) {
-      setSessions([]);
-      setSessionsError(null);
-      return;
-    }
-    setSessionsLoading(true);
-    setSessionsError(null);
-    try {
-      const next = await listAcpSessions({
-        workspaceId,
-        checkoutId,
-        agentId: selectedAgentId,
-        agentCommand,
-        limit: 1,
-      });
-      setSessions(next);
-    } catch (err) {
-      setSessionsError(String(err));
-      setSessions([]);
-    } finally {
-      setSessionsLoading(false);
-    }
-  }, [agentCommand, checkoutId, resumePolicy, selectedAgentId, workspaceId]);
-
-  useEffect(() => {
-    void refreshSessions();
-  }, [refreshSessions]);
-
-  const clearLatestSession = useCallback(async () => {
-    if (!latestSession || clearingSession) return;
-    setClearingSession(true);
-    setSessionsError(null);
-    try {
-      await clearAcpSession(latestSession.runId);
-      await refreshSessions();
-    } catch (err) {
-      setSessionsError(String(err));
-    } finally {
-      setClearingSession(false);
-    }
-  }, [clearingSession, latestSession, refreshSessions]);
-
   return (
     <Card as="section" aria-labelledby="run-heading">
       <CardHeader>
@@ -206,30 +151,35 @@ export function RunPanel({
         </label>
 
         {resumePolicy !== "fresh" ? (
-          <div className="grid gap-2 rounded-lg border border-border bg-muted/25 p-3 text-sm">
-            {sessionsLoading ? (
-              <p className="text-muted-foreground">Checking persisted sessions...</p>
-            ) : latestSession ? (
-              <div className="grid gap-2">
-                <div className="grid gap-1">
-                  <p className="font-medium text-foreground">Latest session {latestSession.sessionId.slice(0, 8)}</p>
-                  <p className="truncate text-xs text-muted-foreground">{latestSession.task}</p>
-                  <p className="text-xs text-muted-foreground">{sessionUpdatedAt}</p>
-                </div>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  icon={<Trash2 size={15} />}
-                  disabled={isRunning || clearingSession}
-                  onClick={clearLatestSession}
-                >
-                  Clear latest session
-                </Button>
+          <div className="grid gap-2 rounded-md border border-border bg-muted/20 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Resume target
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                icon={<Trash2 size={14} />}
+                disabled={isRunning || !latestAcpSession}
+                onClick={onClearLatestAcpSession}
+              >
+                Clear
+              </Button>
+            </div>
+            {latestAcpSession ? (
+              <div className="grid gap-1 text-xs text-muted-foreground">
+                <code className="truncate font-mono text-foreground">
+                  {latestAcpSession.sessionId.slice(0, 12)}
+                </code>
+                <span className="truncate">{latestAcpSession.task}</span>
+                <span>{formatSessionTime(latestAcpSession.updatedAt)}</span>
               </div>
             ) : (
-              <p className="text-muted-foreground">No matching persisted session</p>
+              <span className="text-xs text-muted-foreground">
+                {acpSessionLoading ? "Checking sessions..." : "No stored session"}
+              </span>
             )}
-            {sessionsError ? <p className="text-xs font-medium text-destructive">{sessionsError}</p> : null}
           </div>
         ) : null}
 
@@ -332,4 +282,12 @@ export function RunPanel({
       </CardContent>
     </Card>
   );
+}
+
+function formatSessionTime(value: string) {
+  const timestamp = Number(value);
+  if (Number.isFinite(timestamp) && timestamp > 0) {
+    return new Date(timestamp * 1000).toLocaleString();
+  }
+  return value;
 }

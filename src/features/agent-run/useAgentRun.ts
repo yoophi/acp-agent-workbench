@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo } from "react";
 import {
+  clearAcpSession,
   cancelAgentRun,
+  listAcpSessions,
   listWorkspaceCheckouts,
   listAgents,
   provisionWorkspaceTaskWorktree,
@@ -50,6 +52,29 @@ export function useAgentRun(tabId: string) {
     () => agents.find((agent) => agent.id === tab?.selectedAgentId),
     [agents, tab?.selectedAgentId],
   );
+  const acpSessionQuery = useMemo(
+    () => ({
+      workspaceId: tab?.workspaceId ?? null,
+      checkoutId: tab?.checkoutId ?? null,
+      workdir: tab?.cwd?.trim() || null,
+      agentId: tab?.selectedAgentId ?? null,
+      agentCommand: (tab?.customCommand.trim() || selectedAgent?.command) ?? null,
+      limit: 1,
+    }),
+    [
+      selectedAgent?.command,
+      tab?.checkoutId,
+      tab?.customCommand,
+      tab?.cwd,
+      tab?.selectedAgentId,
+      tab?.workspaceId,
+    ],
+  );
+  const acpSessionsQuery = useQuery({
+    queryKey: ["acp-sessions", acpSessionQuery],
+    queryFn: () => listAcpSessions(acpSessionQuery),
+    enabled: Boolean(acpSessionQuery.agentId),
+  });
 
   const items = tab?.items ?? EMPTY_ITEMS;
   const filter: EventGroup | "all" = tab?.filter ?? "all";
@@ -124,6 +149,7 @@ export function useAgentRun(tabId: string) {
         store.setWorkspaceCheckouts(current.workspaceId, checkouts);
       }
       await startAgentRun(request);
+      void acpSessionsQuery.refetch();
     } catch (err) {
       const error = String(err);
       const store = useWorkbenchStore.getState();
@@ -131,7 +157,7 @@ export function useAgentRun(tabId: string) {
       store.endRun(tabId);
       store.patchTab(tabId, { activeRunId: null });
     }
-  }, [tabId, patch]);
+  }, [acpSessionsQuery, tabId, patch]);
 
   const cancel = useCallback(async () => {
     const current = selectTab(useWorkbenchStore.getState(), tabId);
@@ -212,6 +238,17 @@ export function useAgentRun(tabId: string) {
     [patch],
   );
   const setError = useCallback((value: string | null) => patch({ error: value }), [patch]);
+  const clearLatestAcpSession = useCallback(async () => {
+    const latest = acpSessionsQuery.data?.[0];
+    if (!latest) return;
+    try {
+      await clearAcpSession(latest.runId);
+      await acpSessionsQuery.refetch();
+      patch({ error: null });
+    } catch (err) {
+      patch({ error: String(err) });
+    }
+  }, [acpSessionsQuery, patch]);
 
   return {
     agents,
@@ -233,6 +270,9 @@ export function useAgentRun(tabId: string) {
     setAutoAllow,
     resumePolicy: tab?.resumePolicy ?? "fresh",
     setResumePolicy,
+    latestAcpSession: acpSessionsQuery.data?.[0] ?? null,
+    acpSessionLoading: acpSessionsQuery.isFetching,
+    clearLatestAcpSession,
     ralphLoop: tab?.ralphLoop ?? defaultRalphLoopSettings,
     setRalphLoop,
     idleTimeoutSec: tab?.idleTimeoutSec ?? 0,

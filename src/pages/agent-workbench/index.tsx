@@ -48,8 +48,6 @@ export function AgentWorkbenchPage() {
             selectedAgentId={state.selectedAgentId}
             onSelectAgent={state.setSelectedAgentId}
             selectedAgent={state.selectedAgent}
-            workspaceId={state.workspaceId}
-            checkoutId={state.checkoutId}
             cwd={state.cwd}
             onCwdChange={state.setCwd}
             customCommand={state.customCommand}
@@ -60,6 +58,9 @@ export function AgentWorkbenchPage() {
             onAutoAllowChange={state.setAutoAllow}
             resumePolicy={state.resumePolicy}
             onResumePolicyChange={state.setResumePolicy}
+            latestAcpSession={state.latestAcpSession}
+            acpSessionLoading={state.acpSessionLoading}
+            onClearLatestAcpSession={state.clearLatestAcpSession}
             ralphLoop={state.ralphLoop}
             onRalphLoopChange={state.setRalphLoop}
             idleTimeoutSec={state.idleTimeoutSec}
