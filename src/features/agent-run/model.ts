@@ -8,6 +8,7 @@ import {
   type TimelineItem,
 } from "../../entities/message";
 import type { LocalTaskSummary, Workspace, WorkspaceCheckout } from "../../entities/workspace";
+import type { RunScenarioId } from "./scenario";
 
 const defaultGoal = "todo rest api 를 nodejs 로 작성해주세요. 데이터는 json 파일로 저장해주세요";
 const EMPTY_FOLLOW_UP_QUEUE: FollowUpQueueItem[] = [];
@@ -30,6 +31,7 @@ export type FollowUpQueueItem = {
 
 export type AgentRunDraft = {
   selectedAgentId: string;
+  scenario: RunScenarioId;
   goal: string;
   customCommand: string;
   stdioBufferLimitMb: number;
@@ -86,6 +88,7 @@ export type TabState = {
   workspaceId: string | null;
   checkoutId: string | null;
   selectedAgentId: string;
+  scenario: RunScenarioId;
   goal: string;
   cwd: string;
   customCommand: string;
@@ -156,6 +159,7 @@ export function createTabState(preset: Partial<TabState> = {}, index = 0): TabSt
     workspaceId: preset.workspaceId ?? null,
     checkoutId: preset.checkoutId ?? null,
     selectedAgentId: preset.selectedAgentId ?? "claude-code",
+    scenario: preset.scenario ?? "default",
     goal: preset.goal ?? defaultGoal,
     cwd: preset.cwd ?? "~/tmp/acp-tauri-agent-workspace",
     customCommand: preset.customCommand ?? "",
@@ -183,6 +187,7 @@ export function createTabState(preset: Partial<TabState> = {}, index = 0): TabSt
 function tabToDraft(tab: TabState): AgentRunDraft {
   return {
     selectedAgentId: tab.selectedAgentId,
+    scenario: tab.scenario,
     goal: tab.goal,
     customCommand: tab.customCommand,
     stdioBufferLimitMb: tab.stdioBufferLimitMb,
@@ -527,6 +532,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         next.draft = {
           ...next.draft,
           selectedAgentId: patch.selectedAgentId ?? next.draft.selectedAgentId,
+          scenario: patch.scenario ?? next.draft.scenario,
           goal: patch.goal ?? next.draft.goal,
           customCommand: patch.customCommand ?? next.draft.customCommand,
           stdioBufferLimitMb: patch.stdioBufferLimitMb ?? next.draft.stdioBufferLimitMb,
@@ -1020,6 +1026,7 @@ function workspaceViewToTabState(
     workspaceId: view.workspaceId,
     checkoutId: view.checkoutId,
     selectedAgentId: view.draft.selectedAgentId,
+    scenario: view.draft.scenario,
     goal: view.draft.goal,
     cwd: view.cwd,
     customCommand: view.draft.customCommand,

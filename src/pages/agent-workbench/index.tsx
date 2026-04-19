@@ -66,6 +66,8 @@ export function AgentWorkbenchPage() {
             agents={state.agents}
             selectedAgentId={state.selectedAgentId}
             onSelectAgent={state.setSelectedAgentId}
+            scenario={state.scenario}
+            onScenarioChange={state.setScenario}
             selectedAgent={state.selectedAgent}
             cwd={state.cwd}
             onCwdChange={state.setCwd}

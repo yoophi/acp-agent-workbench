@@ -49,6 +49,7 @@ describe("workspace-scoped run state", () => {
       checkoutId: "checkout-1",
       cwd: "/repo/workbench",
       goal: "implement workspace tabs",
+      scenario: "spec-writer",
       selectedAgentId: "claude-code",
       sourceTask: {
         id: "bd-123",
@@ -82,6 +83,7 @@ describe("workspace-scoped run state", () => {
     });
     expect(run?.request).toMatchObject({
       goal: "implement workspace tabs",
+      scenario: "spec-writer",
       selectedAgentId: "claude-code",
     });
   });
@@ -181,6 +183,7 @@ describe("workspace-scoped run state", () => {
       filter: "all" as const,
       error: null,
       sourceTask: null,
+      scenario: "default",
       unreadCount: 2,
       permissionPending: false,
       closing: true,

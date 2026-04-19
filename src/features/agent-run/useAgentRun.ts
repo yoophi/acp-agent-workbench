@@ -29,6 +29,7 @@ import {
   type TabState,
   type FollowUpQueueItem,
 } from "./model";
+import { composeScenarioPrompt, type RunScenarioId } from "./scenario";
 
 const EMPTY_FOLLOW_UP_QUEUE: FollowUpQueueItem[] = [];
 const EMPTY_ITEMS: TimelineItem[] = [];
@@ -97,6 +98,9 @@ export function useAgentRun(tabId: string) {
     const current = selectTab(useWorkbenchStore.getState(), tabId);
     if (!current) return;
     const trimmedGoal = (options.goal ?? current.goal).trim();
+    const submittedGoal = composeScenarioPrompt(current.scenario, trimmedGoal, {
+      workdir: current.cwd,
+    });
     const sourceTask = options.sourceTask ? localTaskRunSource(options.sourceTask) : current.sourceTask;
     if (!trimmedGoal) {
       patch({ error: "Goal is empty." });
@@ -142,6 +146,12 @@ export function useAgentRun(tabId: string) {
         message: sourceTaskRunMessage(options.sourceTask ?? sourceTask, Boolean(options.allowBlockedTask)),
       });
     }
+    if (current.scenario === "spec-writer") {
+      store.dispatchRunEvent(runId, {
+        type: "diagnostic",
+        message: "Spec Writer scenario selected; the run goal was composed as a Spec-Kit style specification prompt.",
+      });
+    }
 
     const originalCheckoutId = current.checkoutId ?? null;
     const originalCwd = current.cwd;
@@ -151,7 +161,7 @@ export function useAgentRun(tabId: string) {
 
     const request: AgentRunRequest = {
       runId,
-      goal: trimmedGoal,
+      goal: submittedGoal,
       agentId: current.selectedAgentId,
       workspaceId: current.workspaceId ?? undefined,
       checkoutId,
@@ -258,6 +268,7 @@ export function useAgentRun(tabId: string) {
     (value: string) => patch({ selectedAgentId: value }),
     [patch],
   );
+  const setScenario = useCallback((value: RunScenarioId) => patch({ scenario: value }), [patch]);
   const setGoal = useCallback((value: string) => patch({ goal: value, sourceTask: null }), [patch]);
   const setGoalFromTask = useCallback(
     (value: string, task?: LocalTaskSummary) =>
@@ -315,6 +326,8 @@ export function useAgentRun(tabId: string) {
     checkoutId: tab?.checkoutId ?? null,
     selectedAgentId: tab?.selectedAgentId ?? "",
     setSelectedAgentId,
+    scenario: tab?.scenario ?? "default",
+    setScenario,
     goal: tab?.goal ?? "",
     setGoal,
     setGoalFromTask,
