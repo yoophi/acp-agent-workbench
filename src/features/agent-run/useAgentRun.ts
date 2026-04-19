@@ -5,7 +5,7 @@ import {
   listAgents,
   startAgentRun,
 } from "./api";
-import type { AgentRunRequest, EventGroup, TimelineItem } from "../../entities/message";
+import type { AgentRunRequest, EventGroup, ResumePolicy, TimelineItem } from "../../entities/message";
 import type { SavedPromptRunMode } from "../../entities/saved-prompt";
 import {
   selectTab,
@@ -89,6 +89,7 @@ export function useAgentRun(tabId: string) {
       agentCommand: current.customCommand.trim() || undefined,
       stdioBufferLimitMb: Math.min(512, Math.max(1, current.stdioBufferLimitMb || 50)),
       autoAllow: current.autoAllow,
+      resumePolicy: current.resumePolicy === "fresh" ? undefined : current.resumePolicy,
     };
 
     try {
@@ -163,6 +164,7 @@ export function useAgentRun(tabId: string) {
     [patch],
   );
   const setAutoAllow = useCallback((value: boolean) => patch({ autoAllow: value }), [patch]);
+  const setResumePolicy = useCallback((value: ResumePolicy) => patch({ resumePolicy: value }), [patch]);
   const setIdleTimeoutSec = useCallback(
     (value: number) => patch({ idleTimeoutSec: value }),
     [patch],
@@ -195,6 +197,8 @@ export function useAgentRun(tabId: string) {
     setStdioBufferLimitMb,
     autoAllow: tab?.autoAllow ?? true,
     setAutoAllow,
+    resumePolicy: tab?.resumePolicy ?? "fresh",
+    setResumePolicy,
     idleTimeoutSec: tab?.idleTimeoutSec ?? 0,
     setIdleTimeoutSec,
     idleRemainingSec: tab?.idleRemainingSec ?? null,

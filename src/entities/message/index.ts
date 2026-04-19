@@ -6,6 +6,7 @@ export type {
   LifecycleStatus,
   PermissionOption,
   PlanEntry,
+  ResumePolicy,
   RunEvent,
   RunEventEnvelope,
   TimelineItem,

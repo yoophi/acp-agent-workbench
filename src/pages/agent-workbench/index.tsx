@@ -54,6 +54,8 @@ export function AgentWorkbenchPage() {
             onStdioBufferLimitChange={state.setStdioBufferLimitMb}
             autoAllow={state.autoAllow}
             onAutoAllowChange={state.setAutoAllow}
+            resumePolicy={state.resumePolicy}
+            onResumePolicyChange={state.setResumePolicy}
             idleTimeoutSec={state.idleTimeoutSec}
             onIdleTimeoutChange={state.setIdleTimeoutSec}
             idleRemainingSec={state.idleRemainingSec}
