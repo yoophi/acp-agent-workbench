@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, anyhow, bail};
 use serde_json::json;
-use std::{fs, path::PathBuf, process::Stdio, sync::Arc};
+use std::{fs, future::Future, path::PathBuf, process::Stdio, sync::Arc, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::{Child, Command},
@@ -17,7 +17,7 @@ use crate::{
     domain::{
         acp_session::AcpSessionRecord,
         events::{LifecycleStatus, RunEvent},
-        run::{AgentRunRequest, ResumePolicy},
+        run::{AgentRunRequest, RalphLoopRequest, ResumePolicy},
     },
     ports::{
         acp_session_store::AcpSessionStore,
@@ -262,6 +262,7 @@ where
             sink,
             run_id,
             initial_goal: request.goal,
+            ralph_loop: request.ralph_loop,
         };
 
         Ok(LaunchedSession {
@@ -282,6 +283,7 @@ where
     sink: S,
     run_id: String,
     initial_goal: String,
+    ralph_loop: Option<RalphLoopRequest>,
 }
 
 impl<S> RunCommander for AcpRunCommander<S>
@@ -298,24 +300,15 @@ where
                 sink,
                 run_id,
                 initial_goal,
+                ralph_loop,
             } = *self;
 
-            let session_for_prompt = session.clone();
-            let sink_for_prompt = sink.clone();
-            let run_id_for_prompt = run_id.clone();
-            tokio::spawn(async move {
-                if let Err(err) = session_for_prompt
-                    .send_prompt(sink_for_prompt.clone(), initial_goal)
-                    .await
-                {
-                    sink_for_prompt.emit(
-                        &run_id_for_prompt,
-                        RunEvent::Error {
-                            message: err.to_string(),
-                        },
-                    );
-                }
-            });
+            run_prompt_sequence(sink.clone(), &run_id, initial_goal, ralph_loop, |prompt| {
+                let session = session.clone();
+                let sink = sink.clone();
+                async move { session.send_prompt(sink, prompt).await.map(|_| ()) }
+            })
+            .await;
 
             match child.wait().await {
                 Ok(status) => {
@@ -369,6 +362,100 @@ where
             }
         })
     }
+}
+
+async fn run_prompt_sequence<S, Fut>(
+    sink: S,
+    run_id: &str,
+    initial_goal: String,
+    ralph_loop: Option<RalphLoopRequest>,
+    mut send_prompt: impl FnMut(String) -> Fut,
+) where
+    S: RunEventSink,
+    Fut: Future<Output = Result<()>>,
+{
+    if send_loop_prompt(sink.clone(), run_id, initial_goal, &mut send_prompt)
+        .await
+        .is_err()
+    {
+        return;
+    }
+
+    let Some(settings) = ralph_loop.filter(|settings| settings.enabled) else {
+        return;
+    };
+    let prompt = settings.prompt_template.trim().to_string();
+    if prompt.is_empty() {
+        sink.emit(
+            run_id,
+            RunEvent::Diagnostic {
+                message: "Ralph loop stopped: loop prompt is empty".into(),
+            },
+        );
+        return;
+    }
+
+    for iteration in 1..=settings.max_iterations {
+        if settings.delay_ms > 0 {
+            tokio::time::sleep(Duration::from_millis(settings.delay_ms)).await;
+        }
+        sink.emit(
+            run_id,
+            RunEvent::Diagnostic {
+                message: format!(
+                    "Ralph loop iteration {iteration}/{} started",
+                    settings.max_iterations
+                ),
+            },
+        );
+        if send_loop_prompt(sink.clone(), run_id, prompt.clone(), &mut send_prompt)
+            .await
+            .is_err()
+        {
+            if settings.stop_on_error {
+                sink.emit(
+                    run_id,
+                    RunEvent::Diagnostic {
+                        message: format!(
+                            "Ralph loop stopped after iteration {iteration}: prompt dispatch failed"
+                        ),
+                    },
+                );
+                return;
+            }
+        }
+    }
+
+    sink.emit(
+        run_id,
+        RunEvent::Diagnostic {
+            message: format!(
+                "Ralph loop stopped: reached max iterations ({})",
+                settings.max_iterations
+            ),
+        },
+    );
+}
+
+async fn send_loop_prompt<S, Fut>(
+    sink: S,
+    run_id: &str,
+    prompt: String,
+    send_prompt: &mut impl FnMut(String) -> Fut,
+) -> Result<()>
+where
+    S: RunEventSink,
+    Fut: Future<Output = Result<()>>,
+{
+    send_prompt(prompt).await.map_err(|err| {
+        sink.emit(
+            run_id,
+            RunEvent::Error {
+                message: err.to_string(),
+            },
+        );
+        err
+    })
 }
 
 pub struct AcpSession {
@@ -518,8 +605,44 @@ fn is_session_not_found(err: &RpcError) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{resume_session_id, should_reissue_missing_session};
-    use crate::domain::run::ResumePolicy;
+    use super::{resume_session_id, run_prompt_sequence, should_reissue_missing_session};
+    use crate::{
+        domain::{
+            events::RunEvent,
+            run::{RalphLoopRequest, ResumePolicy},
+        },
+        ports::event_sink::RunEventSink,
+    };
+    use anyhow::anyhow;
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    #[derive(Clone, Default)]
+    struct CollectingSink {
+        events: Arc<Mutex<Vec<(String, RunEvent)>>>,
+    }
+
+    impl RunEventSink for CollectingSink {
+        fn emit(&self, run_id: &str, event: RunEvent) {
+            self.events
+                .lock()
+                .unwrap()
+                .push((run_id.to_string(), event));
+        }
+    }
+
+    fn ralph_loop(max_iterations: usize) -> RalphLoopRequest {
+        RalphLoopRequest {
+            enabled: true,
+            max_iterations,
+            prompt_template: "continue".into(),
+            stop_on_error: true,
+            stop_on_permission: true,
+            delay_ms: 0,
+        }
+    }
 
     #[test]
     fn fresh_policy_ignores_resume_session_id() {
@@ -554,5 +677,94 @@ mod tests {
         assert!(!should_reissue_missing_session(
             ResumePolicy::ResumeRequired
         ));
+    }
+
+    #[tokio::test]
+    async fn ralph_loop_sends_follow_up_prompts_until_max_iterations() {
+        let sink = CollectingSink::default();
+        let prompts = Arc::new(Mutex::new(Vec::new()));
+
+        run_prompt_sequence(
+            sink.clone(),
+            "run-1",
+            "initial".into(),
+            Some(ralph_loop(2)),
+            {
+                let prompts = prompts.clone();
+                move |prompt| {
+                    let prompts = prompts.clone();
+                    async move {
+                        prompts.lock().unwrap().push(prompt);
+                        Ok(())
+                    }
+                }
+            },
+        )
+        .await;
+
+        assert_eq!(
+            prompts.lock().unwrap().as_slice(),
+            ["initial", "continue", "continue"]
+        );
+        let events = sink.events.lock().unwrap();
+        assert!(events.iter().any(|(_, event)| matches!(
+            event,
+            RunEvent::Diagnostic { message }
+                if message == "Ralph loop iteration 1/2 started"
+        )));
+        assert!(events.iter().any(|(_, event)| matches!(
+            event,
+            RunEvent::Diagnostic { message }
+                if message == "Ralph loop stopped: reached max iterations (2)"
+        )));
+    }
+
+    #[tokio::test]
+    async fn ralph_loop_stops_on_prompt_dispatch_failure() {
+        let sink = CollectingSink::default();
+        let prompts = Arc::new(Mutex::new(Vec::new()));
+        let attempts = Arc::new(AtomicUsize::new(0));
+
+        run_prompt_sequence(
+            sink.clone(),
+            "run-1",
+            "initial".into(),
+            Some(ralph_loop(3)),
+            {
+                let prompts = prompts.clone();
+                let attempts = attempts.clone();
+                move |prompt| {
+                    let prompts = prompts.clone();
+                    let attempts = attempts.clone();
+                    async move {
+                        prompts.lock().unwrap().push(prompt);
+                        let attempt = attempts.fetch_add(1, Ordering::SeqCst) + 1;
+                        if attempt == 2 {
+                            Err(anyhow!("dispatch failed"))
+                        } else {
+                            Ok(())
+                        }
+                    }
+                }
+            },
+        )
+        .await;
+
+        assert_eq!(prompts.lock().unwrap().as_slice(), ["initial", "continue"]);
+        let events = sink.events.lock().unwrap();
+        assert!(events.iter().any(|(_, event)| matches!(
+            event,
+            RunEvent::Error { message } if message == "dispatch failed"
+        )));
+        assert!(events.iter().any(|(_, event)| matches!(
+            event,
+            RunEvent::Diagnostic { message }
+                if message == "Ralph loop stopped after iteration 1: prompt dispatch failed"
+        )));
+        assert!(!events.iter().any(|(_, event)| matches!(
+            event,
+            RunEvent::Diagnostic { message }
+                if message == "Ralph loop iteration 2/3 started"
+        )));
     }
 }
