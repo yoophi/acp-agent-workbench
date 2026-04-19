@@ -6,6 +6,7 @@ import {
   startAgentRun,
 } from "./api";
 import type { AgentRunRequest, EventGroup, TimelineItem } from "../../entities/message";
+import type { SavedPromptRunMode } from "../../entities/saved-prompt";
 import { useWorkbenchStore, type TabState, type FollowUpQueueItem } from "./model";
 
 const EMPTY_FOLLOW_UP_QUEUE: FollowUpQueueItem[] = [];
@@ -119,6 +120,25 @@ export function useAgentRun(tabId: string) {
     store.patchTab(tabId, { followUpDraft: "" });
   }, [tabId]);
 
+  const applySavedPrompt = useCallback(
+    (body: string, runMode: SavedPromptRunMode) => {
+      const store = useWorkbenchStore.getState();
+      const current = store.tabs.find((t) => t.id === tabId);
+      const trimmed = body.trim();
+      if (!current || !trimmed) return;
+      if (!current.sessionActive) {
+        store.patchTab(tabId, { goal: trimmed });
+        return;
+      }
+      if (runMode === "insert") {
+        store.patchTab(tabId, { followUpDraft: trimmed });
+        return;
+      }
+      store.enqueueFollowUp(tabId, trimmed);
+    },
+    [tabId],
+  );
+
   const cancelFollowUp = useCallback(
     (id: string) => useWorkbenchStore.getState().removeFollowUp(tabId, id),
     [tabId],
@@ -187,6 +207,7 @@ export function useAgentRun(tabId: string) {
     run,
     cancel,
     send,
+    applySavedPrompt,
     items,
     visibleItems,
     filter,

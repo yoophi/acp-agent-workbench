@@ -19,7 +19,12 @@ export { type FollowUpQueueItem } from "./model";
 export {
   listWorkspaceCheckouts,
   listWorkspaces,
+  createSavedPrompt,
+  deleteSavedPrompt,
+  listSavedPrompts,
+  recordSavedPromptUsed,
   refreshWorkspaceCheckout,
   registerWorkspaceFromPath,
   resolveWorkspaceWorkdir,
+  updateSavedPrompt,
 } from "./api";

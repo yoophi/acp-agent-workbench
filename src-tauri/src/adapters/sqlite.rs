@@ -6,6 +6,7 @@ use sqlx::{
 use std::{path::Path, time::Duration};
 
 const WORKSPACE_SCHEMA_VERSION: i64 = 1;
+const SAVED_PROMPTS_SCHEMA_VERSION: i64 = 2;
 
 pub async fn open_database(app_data_dir: &Path) -> Result<SqlitePool> {
     tokio::fs::create_dir_all(app_data_dir).await?;
@@ -55,15 +56,25 @@ async fn migrate_database(pool: &SqlitePool) -> Result<()> {
     .execute(pool)
     .await?;
 
+    if !migration_applied(pool, WORKSPACE_SCHEMA_VERSION).await? {
+        migrate_workspace_schema(pool).await?;
+    }
+    if !migration_applied(pool, SAVED_PROMPTS_SCHEMA_VERSION).await? {
+        migrate_saved_prompts_schema(pool).await?;
+    }
+    Ok(())
+}
+
+async fn migration_applied(pool: &SqlitePool, version: i64) -> Result<bool> {
     let applied: Option<(i64,)> =
         sqlx::query_as("SELECT version FROM schema_migrations WHERE version = ?")
-            .bind(WORKSPACE_SCHEMA_VERSION)
+            .bind(version)
             .fetch_optional(pool)
             .await?;
-    if applied.is_some() {
-        return Ok(());
-    }
+    Ok(applied.is_some())
+}
 
+async fn migrate_workspace_schema(pool: &SqlitePool) -> Result<()> {
     let mut tx = pool.begin().await?;
     sqlx::query(
         r#"
@@ -111,6 +122,44 @@ async fn migrate_database(pool: &SqlitePool) -> Result<()> {
     .await?;
     sqlx::query("INSERT INTO schema_migrations (version) VALUES (?)")
         .bind(WORKSPACE_SCHEMA_VERSION)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+async fn migrate_saved_prompts_schema(pool: &SqlitePool) -> Result<()> {
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS saved_prompts (
+            id TEXT PRIMARY KEY,
+            scope TEXT NOT NULL,
+            workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            description TEXT,
+            tags_json TEXT NOT NULL DEFAULT '[]',
+            run_mode TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_used_at TEXT,
+            use_count INTEGER NOT NULL DEFAULT 0
+        )
+        "#,
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_saved_prompts_scope_workspace
+        ON saved_prompts(scope, workspace_id, updated_at DESC)
+        "#,
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query("INSERT INTO schema_migrations (version) VALUES (?)")
+        .bind(SAVED_PROMPTS_SCHEMA_VERSION)
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;

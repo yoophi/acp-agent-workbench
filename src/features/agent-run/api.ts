@@ -1,5 +1,6 @@
 import type { AgentDescriptor } from "../../entities/agent";
 import type { AgentRun, AgentRunRequest, RunEventEnvelope } from "../../entities/message";
+import type { CreateSavedPromptInput, SavedPrompt, UpdateSavedPromptPatch } from "../../entities/saved-prompt";
 import type { RegisteredWorkspace, Workspace, WorkspaceCheckout } from "../../entities/workspace";
 import { invokeCommand, listenEvent } from "../../shared/api";
 
@@ -45,4 +46,24 @@ export function resolveWorkspaceWorkdir(args: {
   cwd?: string | null;
 }) {
   return invokeCommand<string | null>("resolve_workspace_workdir", args);
+}
+
+export function listSavedPrompts(workspaceId?: string | null) {
+  return invokeCommand<SavedPrompt[]>("list_saved_prompts", { workspaceId });
+}
+
+export function createSavedPrompt(input: CreateSavedPromptInput) {
+  return invokeCommand<SavedPrompt>("create_saved_prompt", { input });
+}
+
+export function updateSavedPrompt(id: string, patch: UpdateSavedPromptPatch) {
+  return invokeCommand<SavedPrompt | null>("update_saved_prompt", { id, patch });
+}
+
+export function deleteSavedPrompt(id: string) {
+  return invokeCommand<void>("delete_saved_prompt", { id });
+}
+
+export function recordSavedPromptUsed(id: string) {
+  return invokeCommand<SavedPrompt | null>("record_saved_prompt_used", { id });
 }
