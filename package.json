@@ -8,6 +8,8 @@
     "build": "tsc && vite build",
     "check:fsd": "node scripts/check-fsd-boundaries.mjs",
     "check:fsd:self-test": "node scripts/check-fsd-boundaries.mjs --self-test",
+    "check:backend-boundaries": "node scripts/check-backend-boundaries.mjs",
+    "check:backend-boundaries:self-test": "node scripts/check-backend-boundaries.mjs --self-test",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "node scripts/tauri-dev.mjs",
