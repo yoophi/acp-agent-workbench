@@ -26,12 +26,7 @@ export function App() {
     let mounted = true;
 
     void listenWorkbenchWindowCloseRequests((request) => {
-      const runLabel = request.activeRunCount === 1 ? "run" : "runs";
-      if (
-        window.confirm(
-          `This window owns ${request.activeRunCount} active ${runLabel}. Close it and cancel those runs?`,
-        )
-      ) {
+      if (window.confirm(closeRequestMessage(request))) {
         void closeWorkbenchWindow();
       }
     }).then((dispose) => {
@@ -53,4 +48,15 @@ export function App() {
       <AgentWorkbenchPage />
     </QueryClientProvider>
   );
+}
+
+function closeRequestMessage(request: { activeRunCount: number; lastWindow: boolean }) {
+  const runLabel = request.activeRunCount === 1 ? "run" : "runs";
+  if (request.activeRunCount > 0 && request.lastWindow) {
+    return `This is the last workbench window and it owns ${request.activeRunCount} active ${runLabel}. Close it and cancel those runs?`;
+  }
+  if (request.activeRunCount > 0) {
+    return `This window owns ${request.activeRunCount} active ${runLabel}. Close it and cancel those runs?`;
+  }
+  return "This is the last workbench window. Close it and quit the app?";
 }

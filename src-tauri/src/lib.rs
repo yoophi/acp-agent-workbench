@@ -21,7 +21,7 @@ use adapters::{
         update_pull_request_review_draft, update_saved_prompt,
     },
 };
-use domain::workbench_window::WorkbenchWindowCloseRequest;
+use domain::workbench_window::{WorkbenchWindowCloseRequest, should_confirm_last_window_close};
 use tauri::{Emitter, Manager};
 
 const WORKBENCH_WINDOW_CLOSE_REQUESTED_EVENT: &str = "workbench-window-close-requested";
@@ -46,11 +46,15 @@ pub fn run() {
                     let approved =
                         tauri::async_runtime::block_on(state.take_window_close_approval(&label));
                     let owned_runs = tauri::async_runtime::block_on(state.runs_owned_by(&label));
-                    if !approved && !owned_runs.is_empty() {
+                    let last_window = should_confirm_last_window_close(
+                        &label,
+                        window.app_handle().webview_windows().len(),
+                    );
+                    if !approved && (!owned_runs.is_empty() || last_window) {
                         api.prevent_close();
                         let _ = window.emit(
                             WORKBENCH_WINDOW_CLOSE_REQUESTED_EVENT,
-                            WorkbenchWindowCloseRequest::new(owned_runs.len()),
+                            WorkbenchWindowCloseRequest::new(owned_runs.len(), last_window),
                         );
                     }
                 }

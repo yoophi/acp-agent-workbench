@@ -12,4 +12,5 @@ export type WorkbenchWindowBootstrap = {
 
 export type WorkbenchWindowCloseRequest = {
   activeRunCount: number;
+  lastWindow: boolean;
 };
