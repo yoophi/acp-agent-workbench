@@ -3,6 +3,7 @@ use sqlx::SqlitePool;
 use std::path::PathBuf;
 
 use crate::adapters::{
+    acp_session_store_sqlite::SqliteAcpSessionStore,
     saved_prompt_store_sqlite::SqliteSavedPromptStore, sqlite::open_database,
     workspace_store_migration::migrate_json_workspace_store,
     workspace_store_sqlite::SqliteWorkspaceStore,
@@ -37,5 +38,9 @@ impl StorageState {
 
     pub fn saved_prompt_store(&self) -> SqliteSavedPromptStore {
         SqliteSavedPromptStore::new(self.pool())
+    }
+
+    pub fn acp_session_store(&self) -> SqliteAcpSessionStore {
+        SqliteAcpSessionStore::new(self.pool())
     }
 }
