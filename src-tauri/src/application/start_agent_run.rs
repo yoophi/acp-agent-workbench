@@ -37,6 +37,7 @@ where
         launcher: L,
         sink: S,
         request: AgentRunRequest,
+        owner_window_label: Option<String>,
     ) -> Result<AgentRun, StartAgentRunError>
     where
         L: SessionLauncher<Session = R::Session>,
@@ -44,7 +45,7 @@ where
     {
         let run = build_run(&request);
         self.registry
-            .reserve_run(run.id.clone())
+            .reserve_run(run.id.clone(), owner_window_label)
             .await
             .map_err(StartAgentRunError::ReserveRun)?;
 
@@ -133,6 +134,7 @@ mod tests {
     #[derive(Default)]
     struct FakeRegistryState {
         reserved: Vec<String>,
+        owners: HashMap<String, Option<String>>,
         finished: Vec<String>,
         sessions: HashMap<String, Arc<FakeSession>>,
         handles: HashMap<String, JoinHandle<()>>,
@@ -164,11 +166,16 @@ mod tests {
     impl SessionRegistry for FakeRegistry {
         type Session = FakeSession;
 
-        async fn reserve_run(&self, run_id: String) -> Result<(), ReserveRunError> {
+        async fn reserve_run(
+            &self,
+            run_id: String,
+            owner_window_label: Option<String>,
+        ) -> Result<(), ReserveRunError> {
             let mut state = self.inner.lock().await;
             if let Some(error) = state.reserve_run_error.clone() {
                 return Err(error);
             }
+            state.owners.insert(run_id.clone(), owner_window_label);
             state.reserved.push(run_id);
             Ok(())
         }
@@ -327,18 +334,23 @@ mod tests {
         let launcher = FakeLauncher::success(&c);
 
         let run = StartAgentRunUseCase::new(registry.clone())
-            .execute(launcher, sink.clone(), make_request())
+            .execute(
+                launcher,
+                sink.clone(),
+                make_request(),
+                Some("workbench-a".into()),
+            )
             .await
             .expect("start should succeed");
 
         c.2.notified().await;
-        let handle = registry
-            .inner
-            .lock()
-            .await
-            .handles
-            .remove(&run.id)
-            .expect("handle stored");
+        let mut state = registry.inner.lock().await;
+        assert_eq!(
+            state.owners.get(&run.id).and_then(|value| value.as_deref()),
+            Some("workbench-a")
+        );
+        let handle = state.handles.remove(&run.id).expect("handle stored");
+        drop(state);
         handle.await.expect("task should finish");
 
         assert_eq!(c.1.load(Ordering::SeqCst), 1);
@@ -359,7 +371,7 @@ mod tests {
         let launcher = FakeLauncher::success(&c);
 
         let result = StartAgentRunUseCase::new(registry.clone())
-            .execute(launcher, sink, make_request())
+            .execute(launcher, sink, make_request(), None)
             .await;
 
         assert!(matches!(
@@ -382,7 +394,7 @@ mod tests {
         let launcher = FakeLauncher::success(&c);
 
         let result = StartAgentRunUseCase::new(registry.clone())
-            .execute(launcher, sink, make_request())
+            .execute(launcher, sink, make_request(), None)
             .await;
 
         assert!(matches!(
@@ -404,7 +416,7 @@ mod tests {
         let launcher = FakeLauncher::success(&c);
 
         let result = StartAgentRunUseCase::new(registry.clone())
-            .execute(launcher, sink, make_request())
+            .execute(launcher, sink, make_request(), None)
             .await;
 
         assert!(matches!(
@@ -425,7 +437,7 @@ mod tests {
         let launcher = FakeLauncher::success(&c);
 
         let run = StartAgentRunUseCase::new(registry.clone())
-            .execute(launcher, sink.clone(), make_request())
+            .execute(launcher, sink.clone(), make_request(), None)
             .await
             .expect("start call itself should succeed");
 
@@ -457,7 +469,7 @@ mod tests {
         let launcher = FakeLauncher::failing(done.clone());
 
         let run = StartAgentRunUseCase::new(registry.clone())
-            .execute(launcher, sink.clone(), make_request())
+            .execute(launcher, sink.clone(), make_request(), None)
             .await
             .expect("start call itself should succeed");
 
