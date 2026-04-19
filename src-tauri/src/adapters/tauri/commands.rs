@@ -18,7 +18,9 @@ use crate::{
         workspace_worktree::WorkspaceTaskWorktreeUseCase,
     },
     domain::{
-        acp_session::{AcpSessionLookup, normalize_agent_command},
+        acp_session::{
+            AcpSessionListQuery, AcpSessionLookup, AcpSessionRecord, normalize_agent_command,
+        },
         agent::AgentDescriptor,
         git::{
             GitHubPullRequestCreateRequest, GitHubPullRequestSummary, WorkspaceCommitRequest,
@@ -231,6 +233,37 @@ pub async fn respond_agent_permission(
 ) -> Result<(), String> {
     RespondPermissionUseCase::new(state.permissions())
         .execute(&permission_id, option_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_acp_sessions(
+    storage: State<'_, StorageState>,
+    mut query: AcpSessionListQuery,
+) -> Result<Vec<AcpSessionRecord>, String> {
+    query.agent_command = query
+        .agent_command
+        .as_deref()
+        .map(normalize_agent_command)
+        .transpose()
+        .map_err(|err| err.to_string())?
+        .flatten();
+    storage
+        .acp_session_store()
+        .list_sessions(query)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn clear_acp_session(
+    storage: State<'_, StorageState>,
+    run_id: String,
+) -> Result<bool, String> {
+    storage
+        .acp_session_store()
+        .clear_session(run_id)
         .await
         .map_err(|err| err.to_string())
 }

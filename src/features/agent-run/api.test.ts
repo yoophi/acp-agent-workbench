@@ -8,9 +8,11 @@ vi.mock("../../shared/api", () => ({
 import { invokeCommand, listenEvent } from "../../shared/api";
 import {
   cancelAgentRun,
+  clearAcpSession,
   createGitHubPullRequest,
   createWorkspaceCommit,
   getWorkspaceGitStatus,
+  listAcpSessions,
   listenRunEvents,
   pushWorkspaceBranch,
   provisionWorkspaceTaskWorktree,
@@ -82,6 +84,22 @@ describe("agent-run api", () => {
       workspaceId: "ws-1",
       checkoutId: "co-1",
     });
+  });
+
+  it("ACP session helpers pass query and run id payloads", async () => {
+    mockedInvoke.mockResolvedValue(undefined);
+    const query = {
+      workspaceId: "ws-1",
+      checkoutId: "co-1",
+      agentId: "codex",
+      limit: 5,
+    };
+
+    await listAcpSessions(query);
+    await clearAcpSession("run-1");
+
+    expect(mockedInvoke).toHaveBeenNthCalledWith(1, "list_acp_sessions", { query });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(2, "clear_acp_session", { runId: "run-1" });
   });
 
   it("workspace publishing helpers pass request payloads under request", async () => {

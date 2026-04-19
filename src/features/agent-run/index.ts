@@ -17,8 +17,10 @@ export {
 export { useAgentRun } from "./useAgentRun";
 export { type FollowUpQueueItem } from "./model";
 export {
+  clearAcpSession,
   createGitHubPullRequest,
   getWorkspaceGitStatus,
+  listAcpSessions,
   listWorkspaceCheckouts,
   listWorkspaces,
   createWorkspaceCommit,
