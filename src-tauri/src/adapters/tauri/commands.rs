@@ -18,7 +18,7 @@ use crate::{
         workspace_worktree::WorkspaceTaskWorktreeUseCase,
     },
     domain::{
-        acp_session::AcpSessionLookup,
+        acp_session::{AcpSessionLookup, normalize_agent_command},
         agent::AgentDescriptor,
         git::{
             GitHubPullRequestCreateRequest, GitHubPullRequestSummary, WorkspaceCommitRequest,
@@ -33,8 +33,8 @@ use crate::{
         workspace::{RegisteredWorkspace, Workspace, WorkspaceCheckout},
     },
     ports::{
-        acp_session_store::AcpSessionStore, saved_prompt_store::SavedPromptStore,
-        workspace_store::WorkspaceStore,
+        acp_session_store::AcpSessionStore, agent_catalog::AgentCatalog,
+        saved_prompt_store::SavedPromptStore, workspace_store::WorkspaceStore,
     },
 };
 
@@ -154,9 +154,10 @@ async fn hydrate_resume_session(
         return Ok(());
     }
 
-    let latest = session_store
-        .latest_session(AcpSessionLookup::from_request(request))
-        .await?;
+    let agent_command = resolve_agent_command(&ConfigurableAgentCatalog::from_env(), request)?;
+    let mut lookup = AcpSessionLookup::from_request(request);
+    lookup.agent_command = Some(agent_command);
+    let latest = session_store.latest_session(lookup).await?;
     if let Some(record) = latest {
         request.resume_session_id = Some(record.session_id);
         return Ok(());
@@ -166,6 +167,23 @@ async fn hydrate_resume_session(
         anyhow::bail!("resume session not found for requested workspace context");
     }
     Ok(())
+}
+
+fn resolve_agent_command<C: AgentCatalog>(
+    catalog: &C,
+    request: &AgentRunRequest,
+) -> anyhow::Result<String> {
+    if let Some(command) = request.agent_command.as_deref() {
+        if let Some(command) = normalize_agent_command(command)? {
+            return Ok(command);
+        }
+    }
+
+    let command = catalog
+        .command_for_agent(&request.agent_id)
+        .ok_or_else(|| anyhow::anyhow!("unknown agent: {}", request.agent_id))?;
+    normalize_agent_command(&command)?
+        .ok_or_else(|| anyhow::anyhow!("agent command cannot be empty"))
 }
 
 fn has_resume_session_id(request: &AgentRunRequest) -> bool {
@@ -421,4 +439,45 @@ pub async fn record_saved_prompt_used(
         .record_saved_prompt_used(&id)
         .await
         .map_err(|err| err.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_agent_command;
+    use crate::{adapters::agent_catalog::StaticAgentCatalog, domain::run::AgentRunRequest};
+
+    fn request(agent_command: Option<&str>) -> AgentRunRequest {
+        AgentRunRequest {
+            goal: "task".into(),
+            agent_id: "codex".into(),
+            workspace_id: Some("ws-1".into()),
+            checkout_id: Some("co-1".into()),
+            cwd: Some("/tmp/work".into()),
+            agent_command: agent_command.map(str::to_string),
+            stdio_buffer_limit_mb: None,
+            auto_allow: None,
+            run_id: None,
+            resume_session_id: None,
+            resume_policy: None,
+            ralph_loop: None,
+        }
+    }
+
+    #[test]
+    fn resolves_catalog_command_for_resume_lookup() {
+        let command = resolve_agent_command(&StaticAgentCatalog, &request(None)).unwrap();
+
+        assert_eq!(command, "npx -y @zed-industries/codex-acp");
+    }
+
+    #[test]
+    fn normalizes_explicit_command_for_resume_lookup() {
+        let command = resolve_agent_command(
+            &StaticAgentCatalog,
+            &request(Some(" npx   -y   @zed-industries/codex-acp ")),
+        )
+        .unwrap();
+
+        assert_eq!(command, "npx -y @zed-industries/codex-acp");
+    }
 }

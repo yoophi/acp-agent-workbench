@@ -196,7 +196,12 @@ where
             &run_id,
             lifecycle(LifecycleStatus::SessionCreated, session_id.clone()),
         );
-        let session_record = AcpSessionRecord::from_request(&run_id, &session_id, request);
+        let session_record = AcpSessionRecord::from_request_with_agent_command(
+            &run_id,
+            &session_id,
+            request,
+            Some(&agent_command),
+        );
         self.session_store
             .record_session(session_record.clone())
             .await?;
