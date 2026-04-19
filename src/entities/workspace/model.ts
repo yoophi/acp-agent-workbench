@@ -113,3 +113,27 @@ export type GitHubPullRequestContext = {
   changedFiles: string[];
   diff: string;
 };
+
+export type GitHubPullRequestReviewComment = {
+  path: string;
+  line?: number | null;
+  body: string;
+};
+
+export type GitHubPullRequestReviewDecision = "comment" | "approve" | "requestChanges";
+
+export type GitHubPullRequestReviewRequest = {
+  workspaceId: string;
+  checkoutId?: string | null;
+  number: number;
+  body: string;
+  decision: GitHubPullRequestReviewDecision;
+  comments: GitHubPullRequestReviewComment[];
+  confirmed: boolean;
+};
+
+export type GitHubPullRequestReviewResult = {
+  number: number;
+  decision: GitHubPullRequestReviewDecision;
+  submitted: boolean;
+};

@@ -4,7 +4,8 @@ use crate::{
     domain::{
         git::{
             GitHubPullRequestContext, GitHubPullRequestContextRequest,
-            GitHubPullRequestCreateRequest, GitHubPullRequestSummary, WorkspaceCommitRequest,
+            GitHubPullRequestCreateRequest, GitHubPullRequestReviewRequest,
+            GitHubPullRequestReviewResult, GitHubPullRequestSummary, WorkspaceCommitRequest,
             WorkspaceCommitResult, WorkspaceDiffSummary, WorkspaceGitStatus, WorkspacePushRequest,
             WorkspacePushResult,
         },
@@ -115,6 +116,21 @@ where
         github.load_pull_request_context(&checkout.path, &request)
     }
 
+    pub async fn submit_pull_request_review<H>(
+        &self,
+        github: H,
+        request: GitHubPullRequestReviewRequest,
+    ) -> Result<GitHubPullRequestReviewResult>
+    where
+        H: GitHubPullRequestPort,
+    {
+        require_confirmation(request.confirmed, "publish GitHub pull request review")?;
+        let checkout = self
+            .resolve_checkout(&request.workspace_id, request.checkout_id.as_deref())
+            .await?;
+        github.submit_pull_request_review(&checkout.path, &request)
+    }
+
     async fn resolve_checkout(
         &self,
         workspace_id: &str,
@@ -164,7 +180,10 @@ mod tests {
     use super::*;
     use crate::{
         domain::{
-            git::{WorkspaceGitFileStatus, WorkspacePushResult},
+            git::{
+                GitHubPullRequestReviewDecision, GitHubPullRequestReviewResult,
+                WorkspaceGitFileStatus, WorkspacePushResult,
+            },
             workspace::{CheckoutId, Workspace, WorkspaceCheckout, WorkspaceId},
         },
         ports::github_pull_request::GitHubPullRequestPort,
@@ -274,6 +293,14 @@ mod tests {
         ) -> Result<GitHubPullRequestContext> {
             panic!("confirmation should be checked before GitHub PR context loading")
         }
+
+        fn submit_pull_request_review(
+            &self,
+            _workdir: &Path,
+            _request: &GitHubPullRequestReviewRequest,
+        ) -> Result<GitHubPullRequestReviewResult> {
+            panic!("confirmation should be checked before GitHub PR review publishing")
+        }
     }
 
     #[derive(Clone)]
@@ -365,6 +392,19 @@ mod tests {
                 diff: "diff --git a/src/lib.rs b/src/lib.rs".into(),
             })
         }
+
+        fn submit_pull_request_review(
+            &self,
+            workdir: &Path,
+            request: &GitHubPullRequestReviewRequest,
+        ) -> Result<GitHubPullRequestReviewResult> {
+            assert_eq!(workdir, Path::new("/repo/worktree"));
+            Ok(GitHubPullRequestReviewResult {
+                number: request.number,
+                decision: request.decision.clone(),
+                submitted: true,
+            })
+        }
     }
 
     #[tokio::test]
@@ -435,6 +475,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn pull_request_review_publishing_requires_explicit_confirmation() {
+        let result = WorkspaceGitUseCase::new(FakeWorkspaceStore, FakeGitRepository)
+            .submit_pull_request_review(
+                FakeGitHubPullRequestClient,
+                GitHubPullRequestReviewRequest {
+                    workspace_id: "workspace-1".into(),
+                    checkout_id: None,
+                    number: 42,
+                    body: "Looks good".into(),
+                    decision: GitHubPullRequestReviewDecision::Approve,
+                    comments: Vec::new(),
+                    confirmed: false,
+                },
+            )
+            .await;
+
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("explicit confirmation")
+        );
+    }
+
+    #[tokio::test]
     async fn loads_pull_request_context_from_resolved_checkout() {
         let context = WorkspaceGitUseCase::new(ContextWorkspaceStore, FakeGitRepository)
             .pull_request_context(
@@ -450,5 +515,27 @@ mod tests {
 
         assert_eq!(context.number, 42);
         assert_eq!(context.changed_files, vec!["src/lib.rs"]);
+    }
+
+    #[tokio::test]
+    async fn submits_pull_request_review_from_resolved_checkout() {
+        let result = WorkspaceGitUseCase::new(ContextWorkspaceStore, FakeGitRepository)
+            .submit_pull_request_review(
+                ContextGitHubClient,
+                GitHubPullRequestReviewRequest {
+                    workspace_id: "workspace-1".into(),
+                    checkout_id: Some("checkout-1".into()),
+                    number: 42,
+                    body: "Ready".into(),
+                    decision: GitHubPullRequestReviewDecision::Comment,
+                    comments: Vec::new(),
+                    confirmed: true,
+                },
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(result.number, 42);
+        assert!(result.submitted);
     }
 }

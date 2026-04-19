@@ -5,7 +5,8 @@ use std::{path::Path, process::Command};
 use crate::{
     domain::git::{
         GitHubPullRequestContext, GitHubPullRequestContextRequest, GitHubPullRequestCreateRequest,
-        GitHubPullRequestSummary, WorkspaceGitStatus,
+        GitHubPullRequestReviewDecision, GitHubPullRequestReviewRequest,
+        GitHubPullRequestReviewResult, GitHubPullRequestSummary, WorkspaceGitStatus,
     },
     ports::github_pull_request::GitHubPullRequestPort,
 };
@@ -123,6 +124,37 @@ impl GitHubPullRequestPort for GhCliPullRequestClient {
             diff,
         })
     }
+
+    fn submit_pull_request_review(
+        &self,
+        workdir: &Path,
+        request: &GitHubPullRequestReviewRequest,
+    ) -> Result<GitHubPullRequestReviewResult> {
+        if request.number == 0 {
+            bail!("pull request number is required");
+        }
+        let body = review_body(request);
+        if body.trim().is_empty() {
+            bail!("review body is required");
+        }
+
+        let number = request.number.to_string();
+        let event_arg = match request.decision {
+            GitHubPullRequestReviewDecision::Comment => "--comment",
+            GitHubPullRequestReviewDecision::Approve => "--approve",
+            GitHubPullRequestReviewDecision::RequestChanges => "--request-changes",
+        };
+        run_gh(
+            workdir,
+            &["pr", "review", &number, event_arg, "--body", body.as_str()],
+        )?;
+
+        Ok(GitHubPullRequestReviewResult {
+            number: request.number,
+            decision: request.decision.clone(),
+            submitted: true,
+        })
+    }
 }
 
 fn parse_pr_number(url: &str) -> Option<u64> {
@@ -157,9 +189,38 @@ fn optional_string_field(value: &Value, field: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
+fn review_body(request: &GitHubPullRequestReviewRequest) -> String {
+    let mut parts = Vec::new();
+    let body = request.body.trim();
+    if !body.is_empty() {
+        parts.push(body.to_string());
+    }
+    let comments = request
+        .comments
+        .iter()
+        .filter(|comment| !comment.body.trim().is_empty())
+        .map(|comment| {
+            let location = match (comment.path.trim(), comment.line) {
+                ("", _) => "general".to_string(),
+                (path, Some(line)) => format!("{path}:{line}"),
+                (path, None) => path.to_string(),
+            };
+            format!("- `{}`: {}", location, comment.body.trim())
+        })
+        .collect::<Vec<_>>();
+    if !comments.is_empty() {
+        parts.push(format!("File comments:\n{}", comments.join("\n")));
+    }
+    parts.join("\n\n")
+}
+
 #[cfg(test)]
 mod tests {
-    use super::parse_pr_number;
+    use super::{parse_pr_number, review_body};
+    use crate::domain::git::{
+        GitHubPullRequestReviewComment, GitHubPullRequestReviewDecision,
+        GitHubPullRequestReviewRequest,
+    };
 
     #[test]
     fn parses_pull_request_number_from_url() {
@@ -167,5 +228,26 @@ mod tests {
             parse_pr_number("https://github.com/org/repo/pull/123"),
             Some(123)
         );
+    }
+
+    #[test]
+    fn formats_review_comments_into_review_body() {
+        let body = review_body(&GitHubPullRequestReviewRequest {
+            workspace_id: "workspace-1".into(),
+            checkout_id: None,
+            number: 42,
+            body: "Summary".into(),
+            decision: GitHubPullRequestReviewDecision::Comment,
+            comments: vec![GitHubPullRequestReviewComment {
+                path: "src/lib.rs".into(),
+                line: Some(12),
+                body: "Consider simplifying this branch.".into(),
+            }],
+            confirmed: true,
+        });
+
+        assert!(body.contains("Summary"));
+        assert!(body.contains("`src/lib.rs:12`"));
+        assert!(body.contains("Consider simplifying"));
     }
 }

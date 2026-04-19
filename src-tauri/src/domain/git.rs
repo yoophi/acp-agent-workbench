@@ -105,3 +105,39 @@ pub struct GitHubPullRequestContext {
     pub changed_files: Vec<String>,
     pub diff: String,
 }
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubPullRequestReviewComment {
+    pub path: String,
+    pub line: Option<u64>,
+    pub body: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum GitHubPullRequestReviewDecision {
+    Comment,
+    Approve,
+    RequestChanges,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubPullRequestReviewRequest {
+    pub workspace_id: String,
+    pub checkout_id: Option<String>,
+    pub number: u64,
+    pub body: String,
+    pub decision: GitHubPullRequestReviewDecision,
+    pub comments: Vec<GitHubPullRequestReviewComment>,
+    pub confirmed: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubPullRequestReviewResult {
+    pub number: u64,
+    pub decision: GitHubPullRequestReviewDecision,
+    pub submitted: bool,
+}

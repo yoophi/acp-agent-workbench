@@ -19,6 +19,7 @@ import {
   provisionWorkspaceTaskWorktree,
   sendPromptToRun,
   startAgentRun,
+  submitGitHubPullRequestReview,
   summarizeWorkspaceDiff,
 } from "./api";
 import { setupTauriListeners } from "../../test/tauri";
@@ -131,6 +132,15 @@ describe("agent-run api", () => {
       draft: true,
       confirmed: true,
     };
+    const reviewRequest = {
+      workspaceId: "ws-1",
+      checkoutId: "co-1",
+      number: 42,
+      body: "Looks good.",
+      decision: "comment" as const,
+      comments: [{ path: "src/index.ts", line: 10, body: "Consider a narrower name." }],
+      confirmed: true,
+    };
 
     await createWorkspaceCommit(commitRequest);
     await pushWorkspaceBranch(pushRequest);
@@ -140,6 +150,7 @@ describe("agent-run api", () => {
       checkoutId: "co-1",
       number: 42,
     });
+    await submitGitHubPullRequestReview(reviewRequest);
 
     expect(mockedInvoke).toHaveBeenNthCalledWith(1, "create_workspace_commit", {
       request: commitRequest,
@@ -152,6 +163,9 @@ describe("agent-run api", () => {
     });
     expect(mockedInvoke).toHaveBeenNthCalledWith(4, "get_github_pull_request_context", {
       request: { workspaceId: "ws-1", checkoutId: "co-1", number: 42 },
+    });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(5, "submit_github_pull_request_review", {
+      request: reviewRequest,
     });
   });
 

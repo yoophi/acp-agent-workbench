@@ -3,7 +3,8 @@ use std::path::Path;
 
 use crate::domain::git::{
     GitHubPullRequestContext, GitHubPullRequestContextRequest, GitHubPullRequestCreateRequest,
-    GitHubPullRequestSummary, WorkspaceGitStatus,
+    GitHubPullRequestReviewRequest, GitHubPullRequestReviewResult, GitHubPullRequestSummary,
+    WorkspaceGitStatus,
 };
 
 pub trait GitHubPullRequestPort: Clone + Send + Sync + 'static {
@@ -19,4 +20,10 @@ pub trait GitHubPullRequestPort: Clone + Send + Sync + 'static {
         workdir: &Path,
         request: &GitHubPullRequestContextRequest,
     ) -> Result<GitHubPullRequestContext>;
+
+    fn submit_pull_request_review(
+        &self,
+        workdir: &Path,
+        request: &GitHubPullRequestReviewRequest,
+    ) -> Result<GitHubPullRequestReviewResult>;
 }

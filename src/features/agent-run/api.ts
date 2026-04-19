@@ -6,6 +6,8 @@ import type {
   GitHubPullRequestCreateRequest,
   GitHubPullRequestContext,
   GitHubPullRequestContextRequest,
+  GitHubPullRequestReviewRequest,
+  GitHubPullRequestReviewResult,
   GitHubPullRequestSummary,
   RegisteredWorkspace,
   Workspace,
@@ -93,6 +95,10 @@ export function createGitHubPullRequest(request: GitHubPullRequestCreateRequest)
 
 export function getGitHubPullRequestContext(request: GitHubPullRequestContextRequest) {
   return invokeCommand<GitHubPullRequestContext>("get_github_pull_request_context", { request });
+}
+
+export function submitGitHubPullRequestReview(request: GitHubPullRequestReviewRequest) {
+  return invokeCommand<GitHubPullRequestReviewResult>("submit_github_pull_request_review", { request });
 }
 
 export function provisionWorkspaceTaskWorktree(args: {
