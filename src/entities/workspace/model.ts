@@ -94,3 +94,22 @@ export type GitHubPullRequestSummary = {
   baseRef: string;
   headRef: string;
 };
+
+export type GitHubPullRequestContextRequest = {
+  workspaceId: string;
+  checkoutId?: string | null;
+  number: number;
+};
+
+export type GitHubPullRequestContext = {
+  number: number;
+  url: string;
+  title: string;
+  body?: string | null;
+  author?: string | null;
+  baseRef: string;
+  headRef: string;
+  headSha: string;
+  changedFiles: string[];
+  diff: string;
+};

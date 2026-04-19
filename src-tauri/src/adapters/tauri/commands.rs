@@ -23,6 +23,7 @@ use crate::{
         },
         agent::AgentDescriptor,
         git::{
+            GitHubPullRequestContext, GitHubPullRequestContextRequest,
             GitHubPullRequestCreateRequest, GitHubPullRequestSummary, WorkspaceCommitRequest,
             WorkspaceCommitResult, WorkspaceDiffSummary, WorkspaceGitStatus, WorkspacePushRequest,
             WorkspacePushResult,
@@ -409,6 +410,17 @@ pub async fn create_github_pull_request(
 ) -> Result<GitHubPullRequestSummary, String> {
     WorkspaceGitUseCase::new(storage.workspace_store(), LocalGitRepository)
         .create_pull_request(GhCliPullRequestClient, request)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_github_pull_request_context(
+    storage: State<'_, StorageState>,
+    request: GitHubPullRequestContextRequest,
+) -> Result<GitHubPullRequestContext, String> {
+    WorkspaceGitUseCase::new(storage.workspace_store(), LocalGitRepository)
+        .pull_request_context(GhCliPullRequestClient, request)
         .await
         .map_err(|err| err.to_string())
 }
