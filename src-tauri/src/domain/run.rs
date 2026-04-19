@@ -12,6 +12,17 @@ pub enum ResumePolicy {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RalphLoopRequest {
+    pub enabled: bool,
+    pub max_iterations: usize,
+    pub prompt_template: String,
+    pub stop_on_error: bool,
+    pub stop_on_permission: bool,
+    pub delay_ms: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AgentRunRequest {
     pub goal: String,
     pub agent_id: String,
@@ -24,6 +35,7 @@ pub struct AgentRunRequest {
     pub run_id: Option<String>,
     pub resume_session_id: Option<String>,
     pub resume_policy: Option<ResumePolicy>,
+    pub ralph_loop: Option<RalphLoopRequest>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

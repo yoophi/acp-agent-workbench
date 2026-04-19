@@ -5,9 +5,16 @@ import {
   listAgents,
   startAgentRun,
 } from "./api";
-import type { AgentRunRequest, EventGroup, ResumePolicy, TimelineItem } from "../../entities/message";
+import type {
+  AgentRunRequest,
+  EventGroup,
+  RalphLoopSettings,
+  ResumePolicy,
+  TimelineItem,
+} from "../../entities/message";
 import type { SavedPromptRunMode } from "../../entities/saved-prompt";
 import {
+  defaultRalphLoopSettings,
   selectTab,
   selectTabList,
   useWorkbenchStore,
@@ -90,6 +97,7 @@ export function useAgentRun(tabId: string) {
       stdioBufferLimitMb: Math.min(512, Math.max(1, current.stdioBufferLimitMb || 50)),
       autoAllow: current.autoAllow,
       resumePolicy: current.resumePolicy === "fresh" ? undefined : current.resumePolicy,
+      ralphLoop: current.ralphLoop.enabled ? current.ralphLoop : undefined,
     };
 
     try {
@@ -165,6 +173,10 @@ export function useAgentRun(tabId: string) {
   );
   const setAutoAllow = useCallback((value: boolean) => patch({ autoAllow: value }), [patch]);
   const setResumePolicy = useCallback((value: ResumePolicy) => patch({ resumePolicy: value }), [patch]);
+  const setRalphLoop = useCallback(
+    (value: RalphLoopSettings) => patch({ ralphLoop: value }),
+    [patch],
+  );
   const setIdleTimeoutSec = useCallback(
     (value: number) => patch({ idleTimeoutSec: value }),
     [patch],
@@ -199,6 +211,8 @@ export function useAgentRun(tabId: string) {
     setAutoAllow,
     resumePolicy: tab?.resumePolicy ?? "fresh",
     setResumePolicy,
+    ralphLoop: tab?.ralphLoop ?? defaultRalphLoopSettings,
+    setRalphLoop,
     idleTimeoutSec: tab?.idleTimeoutSec ?? 0,
     setIdleTimeoutSec,
     idleRemainingSec: tab?.idleRemainingSec ?? null,

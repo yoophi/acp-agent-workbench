@@ -2,6 +2,7 @@ import { create } from "zustand";
 import {
   toTimelineItem,
   type EventGroup,
+  type RalphLoopSettings,
   type ResumePolicy,
   type RunEvent,
   type TimelineItem,
@@ -9,6 +10,14 @@ import {
 import type { Workspace, WorkspaceCheckout } from "../../entities/workspace";
 
 const defaultGoal = "todo rest api 를 nodejs 로 작성해주세요. 데이터는 json 파일로 저장해주세요";
+export const defaultRalphLoopSettings: RalphLoopSettings = {
+  enabled: false,
+  maxIterations: 3,
+  promptTemplate: "Continue from the previous result. If the task is complete, say so clearly.",
+  stopOnError: true,
+  stopOnPermission: true,
+  delayMs: 0,
+};
 
 export type FollowUpQueueItem = {
   id: string;
@@ -24,6 +33,7 @@ export type AgentRunDraft = {
   stdioBufferLimitMb: number;
   autoAllow: boolean;
   resumePolicy: ResumePolicy;
+  ralphLoop: RalphLoopSettings;
   idleTimeoutSec: number;
 };
 
@@ -72,6 +82,7 @@ export type TabState = {
   stdioBufferLimitMb: number;
   autoAllow: boolean;
   resumePolicy: ResumePolicy;
+  ralphLoop: RalphLoopSettings;
   idleTimeoutSec: number;
   idleRemainingSec: number | null;
   activeRunId: string | null;
@@ -139,6 +150,7 @@ export function createTabState(preset: Partial<TabState> = {}, index = 0): TabSt
     stdioBufferLimitMb: preset.stdioBufferLimitMb ?? 50,
     autoAllow: preset.autoAllow ?? true,
     resumePolicy: preset.resumePolicy ?? "fresh",
+    ralphLoop: preset.ralphLoop ?? { ...defaultRalphLoopSettings },
     idleTimeoutSec: preset.idleTimeoutSec ?? 60,
     idleRemainingSec: preset.idleRemainingSec ?? null,
     activeRunId: preset.activeRunId ?? null,
@@ -163,6 +175,7 @@ function tabToDraft(tab: TabState): AgentRunDraft {
     stdioBufferLimitMb: tab.stdioBufferLimitMb,
     autoAllow: tab.autoAllow,
     resumePolicy: tab.resumePolicy,
+    ralphLoop: tab.ralphLoop,
     idleTimeoutSec: tab.idleTimeoutSec,
   };
 }
@@ -458,6 +471,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
           stdioBufferLimitMb: patch.stdioBufferLimitMb ?? next.draft.stdioBufferLimitMb,
           autoAllow: patch.autoAllow ?? next.draft.autoAllow,
           resumePolicy: patch.resumePolicy ?? next.draft.resumePolicy,
+          ralphLoop: patch.ralphLoop ?? next.draft.ralphLoop,
           idleTimeoutSec: patch.idleTimeoutSec ?? next.draft.idleTimeoutSec,
         };
         return next;
@@ -891,6 +905,7 @@ function workspaceViewToTabState(
     stdioBufferLimitMb: view.draft.stdioBufferLimitMb,
     autoAllow: view.draft.autoAllow,
     resumePolicy: view.draft.resumePolicy,
+    ralphLoop: view.draft.ralphLoop,
     idleTimeoutSec: view.draft.idleTimeoutSec,
     idleRemainingSec: run?.idleRemainingSec ?? fallback?.idleRemainingSec ?? null,
     activeRunId: view.activeRunId,

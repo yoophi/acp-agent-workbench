@@ -315,6 +315,7 @@ mod tests {
             run_id: Some("run-1".into()),
             resume_session_id: None,
             resume_policy: None,
+            ralph_loop: None,
         }
     }
 
