@@ -1,6 +1,6 @@
 import { Octagon, Play, ShieldCheck } from "lucide-react";
 import type { AgentDescriptor } from "../../entities/agent";
-import type { ResumePolicy } from "../../entities/message";
+import type { RalphLoopSettings, ResumePolicy } from "../../entities/message";
 import { cn } from "../../shared/lib";
 import { Button, Card, CardContent, CardHeader, CardTitle, CardTitleBlock, Input, NativeSelect } from "../../shared/ui";
 
@@ -19,6 +19,8 @@ type RunPanelProps = {
   onAutoAllowChange: (value: boolean) => void;
   resumePolicy: ResumePolicy;
   onResumePolicyChange: (value: ResumePolicy) => void;
+  ralphLoop: RalphLoopSettings;
+  onRalphLoopChange: (value: RalphLoopSettings) => void;
   idleTimeoutSec: number;
   onIdleTimeoutChange: (value: number) => void;
   idleRemainingSec: number | null;
@@ -43,6 +45,8 @@ export function RunPanel({
   onAutoAllowChange,
   resumePolicy,
   onResumePolicyChange,
+  ralphLoop,
+  onRalphLoopChange,
   idleTimeoutSec,
   onIdleTimeoutChange,
   idleRemainingSec,
@@ -138,6 +142,81 @@ export function RunPanel({
             <option value="resumeRequired">Require latest session</option>
           </NativeSelect>
         </label>
+
+        <div className="grid gap-3 rounded-lg border border-border bg-muted/25 p-3">
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-primary"
+              checked={ralphLoop.enabled}
+              disabled={isRunning}
+              onChange={(event) => onRalphLoopChange({ ...ralphLoop, enabled: event.target.checked })}
+            />
+            <span>Ralph loop</span>
+          </label>
+          <label className="grid gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Max iterations</span>
+            <Input
+              type="number"
+              min={1}
+              max={50}
+              value={ralphLoop.maxIterations}
+              disabled={isRunning || !ralphLoop.enabled}
+              onChange={(event) =>
+                onRalphLoopChange({
+                  ...ralphLoop,
+                  maxIterations: Math.max(1, Math.min(50, Number(event.target.value) || 1)),
+                })
+              }
+            />
+          </label>
+          <label className="grid gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Loop prompt</span>
+            <Input
+              value={ralphLoop.promptTemplate}
+              disabled={isRunning || !ralphLoop.enabled}
+              onChange={(event) => onRalphLoopChange({ ...ralphLoop, promptTemplate: event.target.value })}
+            />
+          </label>
+          <label className="grid gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Delay (ms)</span>
+            <Input
+              type="number"
+              min={0}
+              max={60000}
+              value={ralphLoop.delayMs}
+              disabled={isRunning || !ralphLoop.enabled}
+              onChange={(event) =>
+                onRalphLoopChange({
+                  ...ralphLoop,
+                  delayMs: Math.max(0, Math.min(60000, Number(event.target.value) || 0)),
+                })
+              }
+            />
+          </label>
+          <div className="grid gap-2">
+            <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-primary"
+                checked={ralphLoop.stopOnError}
+                disabled={isRunning || !ralphLoop.enabled}
+                onChange={(event) => onRalphLoopChange({ ...ralphLoop, stopOnError: event.target.checked })}
+              />
+              <span>Stop on error</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-primary"
+                checked={ralphLoop.stopOnPermission}
+                disabled={isRunning || !ralphLoop.enabled}
+                onChange={(event) => onRalphLoopChange({ ...ralphLoop, stopOnPermission: event.target.checked })}
+              />
+              <span>Stop on permission request</span>
+            </label>
+          </div>
+        </div>
 
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
           <Button type="button" variant="primary" icon={<Play size={17} />} disabled={isRunning} onClick={onRun}>

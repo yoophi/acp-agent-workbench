@@ -1,5 +1,14 @@
 export type ResumePolicy = "fresh" | "resumeIfAvailable" | "resumeRequired";
 
+export type RalphLoopSettings = {
+  enabled: boolean;
+  maxIterations: number;
+  promptTemplate: string;
+  stopOnError: boolean;
+  stopOnPermission: boolean;
+  delayMs: number;
+};
+
 export type AgentRunRequest = {
   runId?: string;
   goal: string;
@@ -12,6 +21,7 @@ export type AgentRunRequest = {
   autoAllow?: boolean;
   resumeSessionId?: string;
   resumePolicy?: ResumePolicy;
+  ralphLoop?: RalphLoopSettings;
 };
 
 export type AgentRun = {

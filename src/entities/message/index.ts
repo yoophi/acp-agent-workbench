@@ -6,6 +6,7 @@ export type {
   LifecycleStatus,
   PermissionOption,
   PlanEntry,
+  RalphLoopSettings,
   ResumePolicy,
   RunEvent,
   RunEventEnvelope,
