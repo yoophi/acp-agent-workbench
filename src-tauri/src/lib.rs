@@ -7,11 +7,11 @@ use adapters::{
     session_registry::AppState,
     storage_state::StorageState,
     tauri::commands::{
-        cancel_agent_run, create_saved_prompt, delete_saved_prompt, list_agents,
-        list_saved_prompts, list_workspace_checkouts, list_workspaces, load_goal_file,
+        cancel_agent_run, create_saved_prompt, delete_saved_prompt, get_workspace_git_status,
+        list_agents, list_saved_prompts, list_workspace_checkouts, list_workspaces, load_goal_file,
         record_saved_prompt_used, refresh_workspace_checkout, register_workspace_from_path,
         remove_workspace, resolve_workspace_workdir, respond_agent_permission, send_prompt_to_run,
-        start_agent_run, update_saved_prompt,
+        start_agent_run, summarize_workspace_diff, update_saved_prompt,
     },
 };
 use tauri::Manager;
@@ -39,6 +39,8 @@ pub fn run() {
             list_workspace_checkouts,
             refresh_workspace_checkout,
             resolve_workspace_workdir,
+            get_workspace_git_status,
+            summarize_workspace_diff,
             list_saved_prompts,
             create_saved_prompt,
             update_saved_prompt,

@@ -6,7 +6,9 @@ use std::{
 
 use crate::{
     adapters::acp::util::{expand_tilde, normalize_path},
+    domain::git::{WorkspaceDiffSummary, WorkspaceGitFileStatus, WorkspaceGitStatus},
     domain::workspace::GitOrigin,
+    ports::git_repository::GitRepositoryPort,
 };
 
 #[derive(Clone, Debug)]
@@ -39,6 +41,21 @@ impl GitRepository {
             branch,
             head_sha,
         })
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct LocalGitRepository;
+
+impl GitRepositoryPort for LocalGitRepository {
+    fn status(&self, workdir: &Path) -> Result<WorkspaceGitStatus> {
+        git_status(workdir)
+    }
+
+    fn diff_summary(&self, workdir: &Path) -> Result<WorkspaceDiffSummary> {
+        let status = git_status(workdir)?;
+        let diff_stat = run_git_args(Path::new(&status.root), &["diff", "--stat", "HEAD", "--"])?;
+        Ok(WorkspaceDiffSummary { status, diff_stat })
     }
 }
 
@@ -81,7 +98,83 @@ pub fn parse_github_origin(raw_url: &str) -> Result<GitOrigin> {
     })
 }
 
+fn git_status(workdir: &Path) -> Result<WorkspaceGitStatus> {
+    let root = run_git_args(workdir, &["rev-parse", "--show-toplevel"])?;
+    let root = normalize_path(Path::new(root.trim()))?;
+    let branch = run_git_args(&root, &["branch", "--show-current"])
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let head_sha = run_git_args(&root, &["rev-parse", "HEAD"])
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let porcelain = run_git_args(
+        &root,
+        &["status", "--porcelain=v1", "--untracked-files=all"],
+    )?;
+    let files = parse_porcelain_status(&porcelain);
+
+    Ok(WorkspaceGitStatus {
+        root: root.to_string_lossy().to_string(),
+        branch,
+        head_sha,
+        is_dirty: !files.is_empty(),
+        files,
+    })
+}
+
+fn parse_porcelain_status(output: &str) -> Vec<WorkspaceGitFileStatus> {
+    output
+        .lines()
+        .filter_map(|line| {
+            if line.len() < 4 {
+                return None;
+            }
+            let status_code: String = line.chars().take(2).collect();
+            let path = line.get(3..)?.trim().to_string();
+            if path.is_empty() {
+                return None;
+            }
+            Some(WorkspaceGitFileStatus {
+                status_label: status_label(&status_code).to_string(),
+                status_code,
+                path,
+            })
+        })
+        .collect()
+}
+
+fn status_label(status_code: &str) -> &'static str {
+    if status_code == "??" {
+        return "untracked";
+    }
+    if status_code.contains('A') {
+        return "added";
+    }
+    if status_code.contains('D') {
+        return "deleted";
+    }
+    if status_code.contains('R') {
+        return "renamed";
+    }
+    if status_code.contains('C') {
+        return "copied";
+    }
+    if status_code.contains('U') {
+        return "conflicted";
+    }
+    if status_code.contains('M') {
+        return "modified";
+    }
+    "changed"
+}
+
 fn run_git<const N: usize>(cwd: &Path, args: [&str; N]) -> Result<String> {
+    run_git_args(cwd, &args)
+}
+
+fn run_git_args(cwd: &Path, args: &[&str]) -> Result<String> {
     let output = Command::new("git").args(args).current_dir(cwd).output()?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -92,7 +185,7 @@ fn run_git<const N: usize>(cwd: &Path, args: [&str; N]) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_github_origin;
+    use super::{parse_github_origin, parse_porcelain_status};
 
     #[test]
     fn parses_github_ssh_origin() {
@@ -110,5 +203,20 @@ mod tests {
     fn rejects_non_github_origin() {
         let err = parse_github_origin("https://gitlab.com/org/repo.git").unwrap_err();
         assert!(err.to_string().contains("only GitHub"));
+    }
+
+    #[test]
+    fn parses_porcelain_status_lines() {
+        let files = parse_porcelain_status(
+            " M src/main.rs\nA  README.md\n?? scratch.txt\nR  old.rs -> new.rs\n",
+        );
+
+        assert_eq!(files.len(), 4);
+        assert_eq!(files[0].path, "src/main.rs");
+        assert_eq!(files[0].status_code, " M");
+        assert_eq!(files[0].status_label, "modified");
+        assert_eq!(files[1].status_label, "added");
+        assert_eq!(files[2].status_label, "untracked");
+        assert_eq!(files[3].status_label, "renamed");
     }
 }

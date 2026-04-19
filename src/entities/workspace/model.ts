@@ -29,3 +29,22 @@ export type RegisteredWorkspace = {
   workspace: Workspace;
   checkout: WorkspaceCheckout;
 };
+
+export type WorkspaceGitFileStatus = {
+  path: string;
+  statusCode: string;
+  statusLabel: string;
+};
+
+export type WorkspaceGitStatus = {
+  root: string;
+  branch?: string | null;
+  headSha?: string | null;
+  isDirty: boolean;
+  files: WorkspaceGitFileStatus[];
+};
+
+export type WorkspaceDiffSummary = {
+  status: WorkspaceGitStatus;
+  diffStat: string;
+};
