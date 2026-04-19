@@ -1,12 +1,15 @@
 use anyhow::{Result, anyhow, bail};
 
 use crate::{
-    domain::{local_task::LocalTaskList, workspace::WorkspaceCheckout},
+    domain::{
+        local_task::{LocalTaskStatus, LocalTaskSummary},
+        workspace::WorkspaceCheckout,
+    },
     ports::{local_task_source::LocalTaskSource, workspace_store::WorkspaceStore},
 };
 
 #[derive(Clone)]
-pub struct ListLocalTasksUseCase<S, T>
+pub struct UpdateLocalTaskStatusUseCase<S, T>
 where
     S: WorkspaceStore,
     T: LocalTaskSource,
@@ -15,7 +18,7 @@ where
     task_source: T,
 }
 
-impl<S, T> ListLocalTasksUseCase<S, T>
+impl<S, T> UpdateLocalTaskStatusUseCase<S, T>
 where
     S: WorkspaceStore,
     T: LocalTaskSource,
@@ -28,35 +31,21 @@ where
         &self,
         workspace_id: &str,
         checkout_id: Option<&str>,
-    ) -> Result<LocalTaskList> {
-        let checkout = self.resolve_checkout(workspace_id, checkout_id).await?;
-        let workdir = checkout.path.to_string_lossy().to_string();
-        let detected = self.task_source.has_task_data(&checkout.path);
-        if !detected {
-            return Ok(LocalTaskList::unavailable(
-                workspace_id.trim().to_string(),
-                checkout.id,
-                workdir,
-                false,
-                "beads task data not found in workspace",
-            ));
+        task_id: &str,
+        status: LocalTaskStatus,
+    ) -> Result<LocalTaskSummary> {
+        let task_id = task_id.trim();
+        if task_id.is_empty() {
+            bail!("task id is required");
         }
 
-        match self.task_source.list_tasks(&checkout.path) {
-            Ok(tasks) => Ok(LocalTaskList::available(
-                workspace_id.trim().to_string(),
-                checkout.id,
-                workdir,
-                tasks,
-            )),
-            Err(err) => Ok(LocalTaskList::unavailable(
-                workspace_id.trim().to_string(),
-                checkout.id,
-                workdir,
-                true,
-                err.to_string(),
-            )),
+        let checkout = self.resolve_checkout(workspace_id, checkout_id).await?;
+        if !self.task_source.has_task_data(&checkout.path) {
+            bail!("beads task data not found in workspace");
         }
+
+        self.task_source
+            .update_status(&checkout.path, task_id, status)
     }
 
     async fn resolve_checkout(
@@ -100,13 +89,16 @@ mod tests {
     use super::*;
     use crate::{
         domain::{
-            local_task::{LocalTaskStatus, LocalTaskSummary},
+            local_task::LocalTaskSummary,
             workspace::{CheckoutId, GitOrigin, Workspace, WorkspaceCheckout, WorkspaceId},
         },
         ports::{local_task_source::LocalTaskSource, workspace_store::WorkspaceStore},
     };
     use anyhow::Result;
-    use std::path::{Path, PathBuf};
+    use std::{
+        path::{Path, PathBuf},
+        sync::{Arc, Mutex},
+    };
 
     #[derive(Clone)]
     struct FakeWorkspaceStore;
@@ -175,6 +167,7 @@ mod tests {
     #[derive(Clone)]
     struct FakeTaskSource {
         detected: bool,
+        updated: Arc<Mutex<Vec<(String, LocalTaskStatus)>>>,
     }
 
     impl LocalTaskSource for FakeTaskSource {
@@ -183,57 +176,69 @@ mod tests {
         }
 
         fn list_tasks(&self, _workdir: &Path) -> Result<Vec<LocalTaskSummary>> {
-            Ok(vec![LocalTaskSummary {
-                id: "bd-1".into(),
-                title: "Wire task list".into(),
-                description: Some("Show tasks".into()),
-                status: Some("open".into()),
-                priority: Some("1".into()),
-                labels: vec!["backend".into()],
-                dependencies: vec![],
-                blocked: false,
-                acceptance_criteria: Some("Tasks render".into()),
-            }])
+            Ok(vec![])
         }
 
         fn update_status(
             &self,
             _workdir: &Path,
-            _task_id: &str,
-            _status: LocalTaskStatus,
+            task_id: &str,
+            status: LocalTaskStatus,
         ) -> Result<LocalTaskSummary> {
-            unimplemented!("list tests do not update task status")
+            self.updated
+                .lock()
+                .unwrap()
+                .push((task_id.to_string(), status.clone()));
+            Ok(LocalTaskSummary {
+                id: task_id.into(),
+                title: "Wire task status".into(),
+                description: None,
+                status: Some(status.as_beads_status().into()),
+                priority: None,
+                labels: vec![],
+                dependencies: vec![],
+                blocked: false,
+                acceptance_criteria: None,
+            })
         }
     }
 
     #[tokio::test]
-    async fn returns_tasks_for_detected_workspace_data() {
-        let result =
-            ListLocalTasksUseCase::new(FakeWorkspaceStore, FakeTaskSource { detected: true })
-                .execute("workspace-1", None)
-                .await
-                .unwrap();
+    async fn updates_status_for_detected_workspace_data() {
+        let updates = Arc::new(Mutex::new(vec![]));
+        let result = UpdateLocalTaskStatusUseCase::new(
+            FakeWorkspaceStore,
+            FakeTaskSource {
+                detected: true,
+                updated: updates.clone(),
+            },
+        )
+        .execute("workspace-1", None, "bd-1", LocalTaskStatus::InProgress)
+        .await
+        .unwrap();
 
-        assert!(result.detected);
-        assert!(result.available);
-        assert_eq!(result.checkout_id, "checkout-1");
-        assert_eq!(result.tasks[0].id, "bd-1");
+        assert_eq!(result.status.as_deref(), Some("in_progress"));
+        assert_eq!(
+            updates.lock().unwrap().as_slice(),
+            &[("bd-1".into(), LocalTaskStatus::InProgress)]
+        );
     }
 
     #[tokio::test]
-    async fn reports_recoverable_missing_task_data() {
-        let result =
-            ListLocalTasksUseCase::new(FakeWorkspaceStore, FakeTaskSource { detected: false })
-                .execute("workspace-1", None)
-                .await
-                .unwrap();
+    async fn rejects_missing_task_data() {
+        let result = UpdateLocalTaskStatusUseCase::new(
+            FakeWorkspaceStore,
+            FakeTaskSource {
+                detected: false,
+                updated: Arc::new(Mutex::new(vec![])),
+            },
+        )
+        .execute("workspace-1", None, "bd-1", LocalTaskStatus::Closed)
+        .await;
 
-        assert!(!result.detected);
-        assert!(!result.available);
-        assert_eq!(result.tasks, Vec::<LocalTaskSummary>::new());
         assert_eq!(
-            result.error.as_deref(),
-            Some("beads task data not found in workspace")
+            result.unwrap_err().to_string(),
+            "beads task data not found in workspace"
         );
     }
 }

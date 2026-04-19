@@ -10,6 +10,7 @@ export type {
   GitHubPullRequestSummary,
   GitOrigin,
   LocalTaskList,
+  LocalTaskStatus,
   LocalTaskSummary,
   PullRequestReviewComment,
   PullRequestReviewCommentSide,

@@ -12,6 +12,8 @@ import type {
   GitHubPullRequestReviewResult,
   GitHubPullRequestSummary,
   LocalTaskList,
+  LocalTaskStatus,
+  LocalTaskSummary,
   PullRequestReviewDraft,
   RegisteredWorkspace,
   UpdatePullRequestReviewDraftPatch,
@@ -88,6 +90,15 @@ export function resolveWorkspaceWorkdir(args: {
 
 export function listLocalTasks(workspaceId: string, checkoutId?: string | null) {
   return invokeCommand<LocalTaskList>("list_local_tasks", { workspaceId, checkoutId });
+}
+
+export function updateLocalTaskStatus(args: {
+  workspaceId: string;
+  checkoutId?: string | null;
+  taskId: string;
+  status: LocalTaskStatus;
+}) {
+  return invokeCommand<LocalTaskSummary>("update_local_task_status", args);
 }
 
 export function getWorkspaceGitStatus(workspaceId: string, checkoutId?: string | null) {

@@ -6,7 +6,10 @@ use std::{
     process::{Command, Output},
 };
 
-use crate::{domain::local_task::LocalTaskSummary, ports::local_task_source::LocalTaskSource};
+use crate::{
+    domain::local_task::{LocalTaskStatus, LocalTaskSummary},
+    ports::local_task_source::LocalTaskSource,
+};
 
 #[derive(Clone)]
 pub struct BeadsCliTaskSource;
@@ -17,22 +20,63 @@ impl LocalTaskSource for BeadsCliTaskSource {
     }
 
     fn list_tasks(&self, workdir: &Path) -> Result<Vec<LocalTaskSummary>> {
-        let output = Command::new("bd")
-            .args(["list", "--json"])
-            .current_dir(workdir)
-            .output()
-            .map_err(|err| {
-                if err.kind() == ErrorKind::NotFound {
-                    anyhow!("beads CLI not found; install `bd` to list local tasks")
-                } else {
-                    anyhow!("failed to run beads CLI: {err}")
-                }
-            })?;
+        let output = run_bd(workdir, ["list", "--json"])?;
         parse_beads_list_output(output)
+    }
+
+    fn update_status(
+        &self,
+        workdir: &Path,
+        task_id: &str,
+        status: LocalTaskStatus,
+    ) -> Result<LocalTaskSummary> {
+        let output = run_bd(
+            workdir,
+            [
+                "update",
+                task_id,
+                "--status",
+                status.as_beads_status(),
+                "--json",
+            ],
+        )?;
+        parse_beads_update_output(output)
     }
 }
 
+fn run_bd<const N: usize>(workdir: &Path, args: [&str; N]) -> Result<Output> {
+    Command::new("bd")
+        .args(args)
+        .current_dir(workdir)
+        .output()
+        .map_err(|err| {
+            if err.kind() == ErrorKind::NotFound {
+                anyhow!("beads CLI not found; install `bd` to manage local tasks")
+            } else {
+                anyhow!("failed to run beads CLI: {err}")
+            }
+        })
+}
+
 fn parse_beads_list_output(output: Output) -> Result<Vec<LocalTaskSummary>> {
+    let value = parse_beads_json_output(output)?;
+    parse_beads_tasks(&value)
+}
+
+fn parse_beads_update_output(output: Output) -> Result<LocalTaskSummary> {
+    let value = parse_beads_json_output(output)?;
+    if let Some(task) = parse_beads_task(&value) {
+        return Ok(task);
+    }
+    for key in ["issue", "task"] {
+        if let Some(task) = value.get(key).and_then(parse_beads_task) {
+            return Ok(task);
+        }
+    }
+    bail!("beads JSON output did not contain an updated task");
+}
+
+fn parse_beads_json_output(output: Output) -> Result<Value> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let message = stderr.trim();
@@ -42,9 +86,8 @@ fn parse_beads_list_output(output: Output) -> Result<Vec<LocalTaskSummary>> {
         bail!("beads CLI failed: {message}");
     }
 
-    let value: Value = serde_json::from_slice(&output.stdout)
-        .map_err(|err| anyhow!("failed to parse beads JSON output: {err}"))?;
-    parse_beads_tasks(&value)
+    serde_json::from_slice(&output.stdout)
+        .map_err(|err| anyhow!("failed to parse beads JSON output: {err}"))
 }
 
 fn parse_beads_tasks(value: &Value) -> Result<Vec<LocalTaskSummary>> {
@@ -155,8 +198,9 @@ fn string_array(value: &Value) -> Option<Vec<String>> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_beads_tasks;
+    use super::{parse_beads_tasks, parse_beads_update_output};
     use serde_json::json;
+    use std::{os::unix::process::ExitStatusExt, process::Output};
 
     #[test]
     fn parses_array_output_from_bd_list_json() {
@@ -212,5 +256,19 @@ mod tests {
         assert_eq!(tasks[0].priority.as_deref(), Some("P2"));
         assert_eq!(tasks[0].dependencies, vec!["bd-2"]);
         assert!(tasks[0].blocked);
+    }
+
+    #[test]
+    fn parses_updated_issue_output() {
+        let task = parse_beads_update_output(Output {
+            status: std::process::ExitStatus::from_raw(0),
+            stdout: br#"{"issue":{"id":"bd-4","title":"Update status","status":"in_progress"}}"#
+                .to_vec(),
+            stderr: vec![],
+        })
+        .unwrap();
+
+        assert_eq!(task.id, "bd-4");
+        assert_eq!(task.status.as_deref(), Some("in_progress"));
     }
 }

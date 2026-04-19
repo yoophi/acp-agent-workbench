@@ -1,6 +1,24 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LocalTaskStatus {
+    Open,
+    InProgress,
+    Closed,
+}
+
+impl LocalTaskStatus {
+    pub fn as_beads_status(&self) -> &'static str {
+        match self {
+            Self::Open => "open",
+            Self::InProgress => "in_progress",
+            Self::Closed => "closed",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalTaskSummary {
     pub id: String,
