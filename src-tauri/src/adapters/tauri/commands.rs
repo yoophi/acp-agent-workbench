@@ -15,9 +15,12 @@ use crate::{
     domain::{
         agent::AgentDescriptor,
         run::{AgentRun, AgentRunRequest},
+        saved_prompt::{
+            CreateSavedPromptInput, SavedPrompt, SavedPromptId, UpdateSavedPromptPatch,
+        },
         workspace::{RegisteredWorkspace, Workspace, WorkspaceCheckout},
     },
-    ports::workspace_store::WorkspaceStore,
+    ports::{saved_prompt_store::SavedPromptStore, workspace_store::WorkspaceStore},
 };
 
 #[tauri::command]
@@ -176,5 +179,66 @@ pub async fn resolve_workspace_workdir(
         )
         .await
         .map(|path| path.map(|value| value.to_string_lossy().to_string()))
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_saved_prompts(
+    storage: State<'_, StorageState>,
+    workspace_id: Option<String>,
+) -> Result<Vec<SavedPrompt>, String> {
+    storage
+        .saved_prompt_store()
+        .list_saved_prompts(workspace_id.as_deref())
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn create_saved_prompt(
+    storage: State<'_, StorageState>,
+    input: CreateSavedPromptInput,
+) -> Result<SavedPrompt, String> {
+    storage
+        .saved_prompt_store()
+        .create_saved_prompt(input)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn update_saved_prompt(
+    storage: State<'_, StorageState>,
+    id: SavedPromptId,
+    patch: UpdateSavedPromptPatch,
+) -> Result<Option<SavedPrompt>, String> {
+    storage
+        .saved_prompt_store()
+        .update_saved_prompt(&id, patch)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn delete_saved_prompt(
+    storage: State<'_, StorageState>,
+    id: SavedPromptId,
+) -> Result<(), String> {
+    storage
+        .saved_prompt_store()
+        .delete_saved_prompt(&id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn record_saved_prompt_used(
+    storage: State<'_, StorageState>,
+    id: SavedPromptId,
+) -> Result<Option<SavedPrompt>, String> {
+    storage
+        .saved_prompt_store()
+        .record_saved_prompt_used(&id)
+        .await
         .map_err(|err| err.to_string())
 }

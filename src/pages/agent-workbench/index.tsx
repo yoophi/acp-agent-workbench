@@ -4,6 +4,7 @@ import { EventStream } from "../../widgets/event-stream";
 import { FollowUpComposer } from "../../widgets/follow-up-composer";
 import { FollowUpQueue } from "../../widgets/follow-up-queue";
 import { RunPanel } from "../../widgets/run-panel";
+import { SavedPromptsPanel } from "../../widgets/saved-prompts";
 import { TabBar } from "../../widgets/workbench-tabs";
 import { WorkspaceBar } from "../../widgets/workspace-bar";
 
@@ -68,6 +69,12 @@ export function AgentWorkbenchPage() {
             sessionActive={state.sessionActive}
             awaitingResponse={state.awaitingResponse}
             queueLength={state.followUpQueue.length}
+          />
+          <SavedPromptsPanel
+            workspaceId={state.workspaceId}
+            sessionActive={state.sessionActive}
+            onApply={state.applySavedPrompt}
+            onError={state.setError}
           />
           <FollowUpQueue
             items={state.followUpQueue}
