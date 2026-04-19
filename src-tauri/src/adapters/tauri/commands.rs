@@ -7,16 +7,17 @@ use uuid::Uuid;
 use crate::{
     adapters::{
         acp::runner::AcpAgentRunner, acp_session_store_sqlite::SqliteAcpSessionStore,
-        agent_catalog::ConfigurableAgentCatalog, fs::LocalGoalFileReader, git::LocalGitRepository,
-        github::GhCliPullRequestClient, session_registry::AppState, storage_state::StorageState,
+        agent_catalog::ConfigurableAgentCatalog, beads::BeadsCliTaskSource,
+        fs::LocalGoalFileReader, git::LocalGitRepository, github::GhCliPullRequestClient,
+        session_registry::AppState, storage_state::StorageState,
         tauri::event_sink::TauriRunEventSink,
     },
     application::{
         cancel_agent_run::CancelAgentRunUseCase, list_agents::ListAgentsUseCase,
-        load_goal_file::LoadGoalFileUseCase, resolve_workdir::ResolveWorkdirUseCase,
-        respond_permission::RespondPermissionUseCase, send_prompt::SendPromptUseCase,
-        start_agent_run::StartAgentRunUseCase, workspace_git::WorkspaceGitUseCase,
-        workspace_worktree::WorkspaceTaskWorktreeUseCase,
+        list_local_tasks::ListLocalTasksUseCase, load_goal_file::LoadGoalFileUseCase,
+        resolve_workdir::ResolveWorkdirUseCase, respond_permission::RespondPermissionUseCase,
+        send_prompt::SendPromptUseCase, start_agent_run::StartAgentRunUseCase,
+        workspace_git::WorkspaceGitUseCase, workspace_worktree::WorkspaceTaskWorktreeUseCase,
     },
     domain::{
         acp_session::{
@@ -30,6 +31,7 @@ use crate::{
             WorkspaceCommitResult, WorkspaceDiffSummary, WorkspaceGitStatus, WorkspacePushRequest,
             WorkspacePushResult,
         },
+        local_task::LocalTaskList,
         pull_request_review::{
             CreatePullRequestReviewDraftInput, PullRequestReviewDraft, PullRequestReviewDraftId,
             UpdatePullRequestReviewDraftPatch,
@@ -420,6 +422,18 @@ pub async fn resolve_workspace_workdir(
         )
         .await
         .map(|path| path.map(|value| value.to_string_lossy().to_string()))
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_local_tasks(
+    storage: State<'_, StorageState>,
+    workspace_id: String,
+    checkout_id: Option<String>,
+) -> Result<LocalTaskList, String> {
+    ListLocalTasksUseCase::new(storage.workspace_store(), BeadsCliTaskSource)
+        .execute(&workspace_id, checkout_id.as_deref())
+        .await
         .map_err(|err| err.to_string())
 }
 

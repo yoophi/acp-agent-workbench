@@ -18,6 +18,7 @@ import {
   getGitHubPullRequestContext,
   getWorkspaceGitStatus,
   listAcpSessions,
+  listLocalTasks,
   listPullRequestReviewDrafts,
   listenRunEvents,
   pushWorkspaceBranch,
@@ -129,14 +130,19 @@ describe("agent-run api", () => {
   it("workspace git helpers pass the workspace and checkout ids", async () => {
     mockedInvoke.mockResolvedValue(undefined);
 
+    await listLocalTasks("ws-1", "co-1");
     await getWorkspaceGitStatus("ws-1", "co-1");
     await summarizeWorkspaceDiff("ws-1", "co-1");
 
-    expect(mockedInvoke).toHaveBeenNthCalledWith(1, "get_workspace_git_status", {
+    expect(mockedInvoke).toHaveBeenNthCalledWith(1, "list_local_tasks", {
       workspaceId: "ws-1",
       checkoutId: "co-1",
     });
-    expect(mockedInvoke).toHaveBeenNthCalledWith(2, "summarize_workspace_diff", {
+    expect(mockedInvoke).toHaveBeenNthCalledWith(2, "get_workspace_git_status", {
+      workspaceId: "ws-1",
+      checkoutId: "co-1",
+    });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(3, "summarize_workspace_diff", {
       workspaceId: "ws-1",
       checkoutId: "co-1",
     });

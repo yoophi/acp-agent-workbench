@@ -30,6 +30,29 @@ export type RegisteredWorkspace = {
   checkout: WorkspaceCheckout;
 };
 
+export type LocalTaskSummary = {
+  id: string;
+  title: string;
+  description?: string | null;
+  status?: string | null;
+  priority?: string | null;
+  labels: string[];
+  dependencies: string[];
+  blocked: boolean;
+  acceptanceCriteria?: string | null;
+};
+
+export type LocalTaskList = {
+  workspaceId: string;
+  checkoutId: string;
+  workdir: string;
+  source: "beads";
+  detected: boolean;
+  available: boolean;
+  tasks: LocalTaskSummary[];
+  error?: string | null;
+};
+
 export type WorkspaceGitFileStatus = {
   path: string;
   previousPath?: string | null;
