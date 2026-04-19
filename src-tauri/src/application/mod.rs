@@ -7,3 +7,4 @@ pub mod respond_permission;
 pub mod send_prompt;
 pub mod start_agent_run;
 pub mod workspace_git;
+pub mod workspace_worktree;

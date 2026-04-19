@@ -24,4 +24,11 @@ pub trait GitRepositoryPort: Clone + Send + Sync + 'static {
         branch: &str,
         set_upstream: bool,
     ) -> Result<WorkspacePushResult>;
+
+    fn create_worktree(
+        &self,
+        source_workdir: &Path,
+        branch_name: &str,
+        worktree_path: &Path,
+    ) -> Result<WorkspaceGitStatus>;
 }

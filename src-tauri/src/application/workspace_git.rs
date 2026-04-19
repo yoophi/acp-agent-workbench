@@ -176,6 +176,10 @@ mod tests {
             Ok(None)
         }
 
+        async fn save_checkout(&self, _checkout: WorkspaceCheckout) -> Result<WorkspaceCheckout> {
+            panic!("confirmation should be checked before checkout save")
+        }
+
         async fn remove_workspace(&self, _workspace_id: &WorkspaceId) -> Result<()> {
             Ok(())
         }
@@ -223,6 +227,15 @@ mod tests {
             _set_upstream: bool,
         ) -> Result<WorkspacePushResult> {
             panic!("confirmation should be checked before push")
+        }
+
+        fn create_worktree(
+            &self,
+            _source_workdir: &Path,
+            _branch_name: &str,
+            _worktree_path: &Path,
+        ) -> Result<WorkspaceGitStatus> {
+            panic!("confirmation should be checked before worktree creation")
         }
     }
 
