@@ -24,7 +24,8 @@ use crate::{
         agent::AgentDescriptor,
         git::{
             GitHubPullRequestContext, GitHubPullRequestContextRequest,
-            GitHubPullRequestCreateRequest, GitHubPullRequestSummary, WorkspaceCommitRequest,
+            GitHubPullRequestCreateRequest, GitHubPullRequestReviewRequest,
+            GitHubPullRequestReviewResult, GitHubPullRequestSummary, WorkspaceCommitRequest,
             WorkspaceCommitResult, WorkspaceDiffSummary, WorkspaceGitStatus, WorkspacePushRequest,
             WorkspacePushResult,
         },
@@ -421,6 +422,17 @@ pub async fn get_github_pull_request_context(
 ) -> Result<GitHubPullRequestContext, String> {
     WorkspaceGitUseCase::new(storage.workspace_store(), LocalGitRepository)
         .pull_request_context(GhCliPullRequestClient, request)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn submit_github_pull_request_review(
+    storage: State<'_, StorageState>,
+    request: GitHubPullRequestReviewRequest,
+) -> Result<GitHubPullRequestReviewResult, String> {
+    WorkspaceGitUseCase::new(storage.workspace_store(), LocalGitRepository)
+        .submit_pull_request_review(GhCliPullRequestClient, request)
         .await
         .map_err(|err| err.to_string())
 }

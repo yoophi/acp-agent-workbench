@@ -14,8 +14,8 @@ use adapters::{
         load_goal_file, open_workbench_window, provision_workspace_task_worktree,
         push_workspace_branch, record_saved_prompt_used, refresh_workspace_checkout,
         register_workspace_from_path, remove_workspace, resolve_workspace_workdir,
-        respond_agent_permission, send_prompt_to_run, start_agent_run, summarize_workspace_diff,
-        update_saved_prompt,
+        respond_agent_permission, send_prompt_to_run, start_agent_run,
+        submit_github_pull_request_review, summarize_workspace_diff, update_saved_prompt,
     },
 };
 use tauri::Manager;
@@ -54,6 +54,7 @@ pub fn run() {
             push_workspace_branch,
             create_github_pull_request,
             get_github_pull_request_context,
+            submit_github_pull_request_review,
             provision_workspace_task_worktree,
             list_saved_prompts,
             create_saved_prompt,

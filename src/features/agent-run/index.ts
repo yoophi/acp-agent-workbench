@@ -34,6 +34,7 @@ export {
   refreshWorkspaceCheckout,
   registerWorkspaceFromPath,
   resolveWorkspaceWorkdir,
+  submitGitHubPullRequestReview,
   summarizeWorkspaceDiff,
   updateSavedPrompt,
 } from "./api";
