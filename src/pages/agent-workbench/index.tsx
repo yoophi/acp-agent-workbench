@@ -48,6 +48,8 @@ export function AgentWorkbenchPage() {
             selectedAgentId={state.selectedAgentId}
             onSelectAgent={state.setSelectedAgentId}
             selectedAgent={state.selectedAgent}
+            workspaceId={state.workspaceId}
+            checkoutId={state.checkoutId}
             cwd={state.cwd}
             onCwdChange={state.setCwd}
             customCommand={state.customCommand}
