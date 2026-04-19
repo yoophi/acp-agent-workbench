@@ -2,7 +2,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { AgentWorkbenchPage } from "../pages/agent-workbench";
 import { hydrateDetachedWorkbenchTab, installAgentRuntime } from "../features/agent-run";
-import { getWindowBootstrap } from "../features/workbench-window";
+import {
+  closeWorkbenchWindow,
+  getWindowBootstrap,
+  listenWorkbenchWindowCloseRequests,
+} from "../features/workbench-window";
 
 const queryClient = new QueryClient();
 
@@ -15,6 +19,33 @@ export function App() {
       }
       await installAgentRuntime();
     })();
+  }, []);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let mounted = true;
+
+    void listenWorkbenchWindowCloseRequests((request) => {
+      const runLabel = request.activeRunCount === 1 ? "run" : "runs";
+      if (
+        window.confirm(
+          `This window owns ${request.activeRunCount} active ${runLabel}. Close it and cancel those runs?`,
+        )
+      ) {
+        void closeWorkbenchWindow();
+      }
+    }).then((dispose) => {
+      if (mounted) {
+        unlisten = dispose;
+      } else {
+        dispose();
+      }
+    });
+
+    return () => {
+      mounted = false;
+      unlisten?.();
+    };
   }, []);
 
   return (

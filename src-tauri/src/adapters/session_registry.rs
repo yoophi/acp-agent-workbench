@@ -1,5 +1,9 @@
 use anyhow::{Result, anyhow};
-use std::{collections::HashMap, env, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    env,
+    sync::Arc,
+};
 use tokio::{sync::Mutex, task::JoinHandle};
 
 use crate::{
@@ -21,6 +25,7 @@ pub struct AppState {
     runs: Arc<Mutex<HashMap<String, RunSlot>>>,
     run_owners: Arc<Mutex<HashMap<String, String>>>,
     window_bootstraps: Arc<Mutex<HashMap<String, serde_json::Value>>>,
+    approved_window_closes: Arc<Mutex<HashSet<String>>>,
     permissions: PermissionBroker,
     max_concurrent_runs: Option<usize>,
 }
@@ -37,6 +42,7 @@ impl AppState {
             runs: Arc::default(),
             run_owners: Arc::default(),
             window_bootstraps: Arc::default(),
+            approved_window_closes: Arc::default(),
             permissions: PermissionBroker::default(),
             max_concurrent_runs,
         }
@@ -79,6 +85,20 @@ impl AppState {
 
     pub async fn take_window_bootstrap(&self, window_label: &str) -> Option<serde_json::Value> {
         self.window_bootstraps.lock().await.remove(window_label)
+    }
+
+    pub async fn approve_window_close(&self, window_label: String) {
+        self.approved_window_closes
+            .lock()
+            .await
+            .insert(window_label);
+    }
+
+    pub async fn take_window_close_approval(&self, window_label: &str) -> bool {
+        self.approved_window_closes
+            .lock()
+            .await
+            .remove(window_label)
     }
 }
 
@@ -272,5 +292,14 @@ mod tests {
         );
         assert!(state.cancel_run("run-a").await);
         assert_eq!(state.owner_of("run-a").await, None);
+    }
+
+    #[tokio::test]
+    async fn window_close_approval_is_consumed_once() {
+        let state = AppState::default();
+        state.approve_window_close("workbench-a".into()).await;
+
+        assert!(state.take_window_close_approval("workbench-a").await);
+        assert!(!state.take_window_close_approval("workbench-a").await);
     }
 }

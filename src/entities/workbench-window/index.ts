@@ -1,1 +1,5 @@
-export type { WorkbenchWindowBootstrap, WorkbenchWindowInfo } from "./model";
+export type {
+  WorkbenchWindowBootstrap,
+  WorkbenchWindowCloseRequest,
+  WorkbenchWindowInfo,
+} from "./model";

@@ -102,6 +102,15 @@ pub fn open_workbench_window(app: AppHandle) -> Result<WorkbenchWindowInfo, Stri
 }
 
 #[tauri::command]
+pub async fn close_workbench_window(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    state.approve_window_close(window.label().to_string()).await;
+    window.close().map_err(|err| err.to_string())
+}
+
+#[tauri::command]
 pub async fn detach_tab(
     app: AppHandle,
     state: State<'_, AppState>,

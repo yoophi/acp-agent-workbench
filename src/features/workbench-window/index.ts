@@ -1,1 +1,7 @@
-export { getWindowBootstrap, listWorkbenchWindows, openWorkbenchWindow } from "./api";
+export {
+  closeWorkbenchWindow,
+  getWindowBootstrap,
+  listenWorkbenchWindowCloseRequests,
+  listWorkbenchWindows,
+  openWorkbenchWindow,
+} from "./api";
