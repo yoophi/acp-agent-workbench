@@ -92,12 +92,15 @@ fn derive_worktree_path(checkout_path: &Path, slug: &str) -> Result<PathBuf> {
 }
 
 fn task_worktree_slug(value: Option<&str>) -> String {
-    let slug = sanitize_worktree_slug(value.unwrap_or_default());
+    let mut slug = sanitize_worktree_slug(value.unwrap_or_default());
+    let id = Uuid::new_v4().simple().to_string();
     if slug.is_empty() {
-        let id = Uuid::new_v4().simple().to_string();
         format!("task-{}", &id[..8])
     } else {
-        slug
+        const MAX_SLUG_PREFIX_LEN: usize = 48;
+        slug.truncate(MAX_SLUG_PREFIX_LEN);
+        slug = slug.trim_matches('-').to_string();
+        format!("{slug}-{}", &id[..8])
     }
 }
 
