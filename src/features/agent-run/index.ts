@@ -27,6 +27,7 @@ export {
   getGitHubPullRequestContext,
   getWorkspaceGitStatus,
   listAcpSessions,
+  listLocalTasks,
   listPullRequestReviewDrafts,
   listWorkspaceCheckouts,
   listWorkspaces,

@@ -9,6 +9,8 @@ export type {
   GitHubPullRequestReviewResult,
   GitHubPullRequestSummary,
   GitOrigin,
+  LocalTaskList,
+  LocalTaskSummary,
   PullRequestReviewComment,
   PullRequestReviewCommentSide,
   PullRequestReviewDecision,

@@ -1,6 +1,7 @@
 pub mod cancel_agent_run;
 pub mod errors;
 pub mod list_agents;
+pub mod list_local_tasks;
 pub mod load_goal_file;
 pub mod resolve_workdir;
 pub mod respond_permission;

@@ -1,6 +1,7 @@
 pub mod acp;
 pub mod acp_session_store_sqlite;
 pub mod agent_catalog;
+pub mod beads;
 pub mod fs;
 pub mod git;
 pub mod github;
