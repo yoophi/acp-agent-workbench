@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use uuid::Uuid;
 
 use crate::{
     adapters::{
@@ -23,6 +24,7 @@ use crate::{
         saved_prompt::{
             CreateSavedPromptInput, SavedPrompt, SavedPromptId, UpdateSavedPromptPatch,
         },
+        workbench_window::{WorkbenchWindowBootstrap, WorkbenchWindowInfo},
         workspace::{RegisteredWorkspace, Workspace, WorkspaceCheckout},
     },
     ports::{
@@ -41,6 +43,52 @@ pub fn load_goal_file(path: String) -> Result<String, String> {
     LoadGoalFileUseCase::new(LocalGoalFileReader)
         .execute(&path)
         .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn get_window_bootstrap(window: WebviewWindow) -> WorkbenchWindowBootstrap {
+    WorkbenchWindowBootstrap::new(window.label())
+}
+
+#[tauri::command]
+pub fn list_workbench_windows(app: AppHandle) -> Vec<WorkbenchWindowInfo> {
+    let mut windows: Vec<_> = app
+        .webview_windows()
+        .into_values()
+        .map(|window| {
+            let title = window
+                .title()
+                .unwrap_or_else(|_| window.label().to_string());
+            WorkbenchWindowInfo::new(window.label(), title)
+        })
+        .collect();
+    windows.sort_by(|a, b| a.label.cmp(&b.label));
+    windows
+}
+
+#[tauri::command]
+pub fn open_workbench_window(app: AppHandle) -> Result<WorkbenchWindowInfo, String> {
+    let label = next_workbench_window_label(&app);
+    let title = "ACP Agent Workbench".to_string();
+
+    let window =
+        WebviewWindowBuilder::new(&app, label.clone(), WebviewUrl::App("index.html".into()))
+            .title(&title)
+            .build()
+            .map_err(|err| err.to_string())?;
+    window.set_focus().map_err(|err| err.to_string())?;
+
+    Ok(WorkbenchWindowInfo::new(label, title))
+}
+
+fn next_workbench_window_label(app: &AppHandle) -> String {
+    loop {
+        let suffix = Uuid::new_v4().simple().to_string();
+        let label = format!("workbench-{suffix}");
+        if app.get_webview_window(&label).is_none() {
+            return label;
+        }
+    }
 }
 
 #[tauri::command]
