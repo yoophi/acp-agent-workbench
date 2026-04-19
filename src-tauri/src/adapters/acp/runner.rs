@@ -15,10 +15,12 @@ use crate::{
         util::{RpcError, display_command, expand_tilde, normalize_path, rpc_to_anyhow},
     },
     domain::{
+        acp_session::AcpSessionRecord,
         events::{LifecycleStatus, RunEvent},
         run::{AgentRunRequest, ResumePolicy},
     },
     ports::{
+        acp_session_store::AcpSessionStore,
         agent_catalog::AgentCatalog,
         event_sink::RunEventSink,
         permission::PermissionDecisionPort,
@@ -39,6 +41,7 @@ where
 {
     catalog: C,
     permissions: P,
+    session_store: Arc<dyn AcpSessionStore>,
 }
 
 impl<C, P> AcpAgentRunner<C, P>
@@ -46,10 +49,11 @@ where
     C: AgentCatalog,
     P: PermissionDecisionPort,
 {
-    pub fn new(catalog: C, permissions: P) -> Self {
+    pub fn new(catalog: C, permissions: P, session_store: Arc<dyn AcpSessionStore>) -> Self {
         Self {
             catalog,
             permissions,
+            session_store,
         }
     }
 
@@ -192,6 +196,10 @@ where
             &run_id,
             lifecycle(LifecycleStatus::SessionCreated, session_id.clone()),
         );
+        let session_record = AcpSessionRecord::from_request(&run_id, &session_id, request);
+        self.session_store
+            .record_session(session_record.clone())
+            .await?;
 
         let session = Arc::new(AcpSession {
             run_id,
@@ -199,6 +207,8 @@ where
             workspace,
             peer,
             resume_policy,
+            session_record,
+            session_store: self.session_store.clone(),
             in_flight: Mutex::new(()),
         });
 
@@ -367,6 +377,8 @@ pub struct AcpSession {
     session_id: Mutex<String>,
     workspace: PathBuf,
     resume_policy: ResumePolicy,
+    session_record: AcpSessionRecord,
+    session_store: Arc<dyn AcpSessionStore>,
     in_flight: Mutex<()>,
 }
 
@@ -429,6 +441,9 @@ impl SessionHandle for AcpSession {
                         &self.run_id,
                         lifecycle(LifecycleStatus::SessionCreated, new_id.clone()),
                     );
+                    let mut record = self.session_record.clone();
+                    record.session_id.clone_from(&new_id);
+                    self.session_store.record_session(record).await?;
                     *self.session_id.lock().await = new_id;
                     continue;
                 }

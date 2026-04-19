@@ -7,6 +7,7 @@ use std::{path::Path, time::Duration};
 
 const WORKSPACE_SCHEMA_VERSION: i64 = 1;
 const SAVED_PROMPTS_SCHEMA_VERSION: i64 = 2;
+const ACP_SESSIONS_SCHEMA_VERSION: i64 = 3;
 
 pub async fn open_database(app_data_dir: &Path) -> Result<SqlitePool> {
     tokio::fs::create_dir_all(app_data_dir).await?;
@@ -61,6 +62,9 @@ async fn migrate_database(pool: &SqlitePool) -> Result<()> {
     }
     if !migration_applied(pool, SAVED_PROMPTS_SCHEMA_VERSION).await? {
         migrate_saved_prompts_schema(pool).await?;
+    }
+    if !migration_applied(pool, ACP_SESSIONS_SCHEMA_VERSION).await? {
+        migrate_acp_sessions_schema(pool).await?;
     }
     Ok(())
 }
@@ -160,6 +164,42 @@ async fn migrate_saved_prompts_schema(pool: &SqlitePool) -> Result<()> {
     .await?;
     sqlx::query("INSERT INTO schema_migrations (version) VALUES (?)")
         .bind(SAVED_PROMPTS_SCHEMA_VERSION)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+async fn migrate_acp_sessions_schema(pool: &SqlitePool) -> Result<()> {
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS acp_sessions (
+            run_id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            workspace_id TEXT REFERENCES workspaces(id) ON DELETE SET NULL,
+            checkout_id TEXT REFERENCES workspace_checkouts(id) ON DELETE SET NULL,
+            workdir TEXT,
+            agent_id TEXT NOT NULL,
+            agent_command TEXT,
+            task TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        "#,
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_acp_sessions_lookup
+        ON acp_sessions(workspace_id, checkout_id, workdir, agent_id, updated_at DESC)
+        "#,
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query("INSERT INTO schema_migrations (version) VALUES (?)")
+        .bind(ACP_SESSIONS_SCHEMA_VERSION)
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;

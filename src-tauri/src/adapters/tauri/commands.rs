@@ -1,9 +1,12 @@
+use std::sync::Arc;
+
 use tauri::{AppHandle, State};
 
 use crate::{
     adapters::{
-        acp::runner::AcpAgentRunner, agent_catalog::ConfigurableAgentCatalog,
-        fs::LocalGoalFileReader, session_registry::AppState, storage_state::StorageState,
+        acp::runner::AcpAgentRunner, acp_session_store_sqlite::SqliteAcpSessionStore,
+        agent_catalog::ConfigurableAgentCatalog, fs::LocalGoalFileReader,
+        session_registry::AppState, storage_state::StorageState,
         tauri::event_sink::TauriRunEventSink,
     },
     application::{
@@ -13,14 +16,18 @@ use crate::{
         start_agent_run::StartAgentRunUseCase,
     },
     domain::{
+        acp_session::AcpSessionLookup,
         agent::AgentDescriptor,
-        run::{AgentRun, AgentRunRequest},
+        run::{AgentRun, AgentRunRequest, ResumePolicy},
         saved_prompt::{
             CreateSavedPromptInput, SavedPrompt, SavedPromptId, UpdateSavedPromptPatch,
         },
         workspace::{RegisteredWorkspace, Workspace, WorkspaceCheckout},
     },
-    ports::{saved_prompt_store::SavedPromptStore, workspace_store::WorkspaceStore},
+    ports::{
+        acp_session_store::AcpSessionStore, saved_prompt_store::SavedPromptStore,
+        workspace_store::WorkspaceStore,
+    },
 };
 
 #[tauri::command]
@@ -43,7 +50,7 @@ pub async fn start_agent_run(
     mut request: AgentRunRequest,
 ) -> Result<AgentRun, String> {
     let workspace_store = storage.workspace_store();
-    let resolved_cwd = ResolveWorkdirUseCase::new(workspace_store)
+    let resolved_cwd = ResolveWorkdirUseCase::new(workspace_store.clone())
         .execute(
             request.workspace_id.as_deref(),
             request.checkout_id.as_deref(),
@@ -54,16 +61,65 @@ pub async fn start_agent_run(
     if let Some(cwd) = resolved_cwd {
         request.cwd = Some(cwd.to_string_lossy().to_string());
     }
+    if request.checkout_id.as_deref().is_none_or(str::is_empty) {
+        if let Some(workspace_id) = request.workspace_id.as_deref() {
+            let workspace = workspace_store
+                .get_workspace(workspace_id)
+                .await
+                .map_err(|err| err.to_string())?;
+            request.checkout_id = workspace.and_then(|value| value.default_checkout_id);
+        }
+    }
+
+    let session_store = storage.acp_session_store();
+    hydrate_resume_session(&mut request, &session_store)
+        .await
+        .map_err(|err| err.to_string())?;
 
     let sink = TauriRunEventSink::new(app);
     let permissions = state.permissions();
     let registry = state.inner().clone();
-    let runner = AcpAgentRunner::new(ConfigurableAgentCatalog::from_env(), permissions);
+    let runner = AcpAgentRunner::new(
+        ConfigurableAgentCatalog::from_env(),
+        permissions,
+        Arc::new(session_store),
+    );
 
     StartAgentRunUseCase::new(registry)
         .execute(runner, sink, request)
         .await
         .map_err(String::from)
+}
+
+async fn hydrate_resume_session(
+    request: &mut AgentRunRequest,
+    session_store: &SqliteAcpSessionStore,
+) -> anyhow::Result<()> {
+    let resume_policy = request.resume_policy.unwrap_or_default();
+    if resume_policy == ResumePolicy::Fresh || has_resume_session_id(request) {
+        return Ok(());
+    }
+
+    let latest = session_store
+        .latest_session(AcpSessionLookup::from_request(request))
+        .await?;
+    if let Some(record) = latest {
+        request.resume_session_id = Some(record.session_id);
+        return Ok(());
+    }
+
+    if resume_policy == ResumePolicy::ResumeRequired {
+        anyhow::bail!("resume session not found for requested workspace context");
+    }
+    Ok(())
+}
+
+fn has_resume_session_id(request: &AgentRunRequest) -> bool {
+    request
+        .resume_session_id
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|value| !value.is_empty())
 }
 
 #[tauri::command]
