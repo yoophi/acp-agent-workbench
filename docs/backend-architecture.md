@@ -74,6 +74,14 @@ flowchart LR
 - **application**은 유스케이스 오케스트레이션을 소유한다. `SessionRegistry`, `SessionHandle`, `RunEventSink` 같은 포트를 통해 일한다. 테스트에서는 fake port로 대체 가능.
 - **adapters**는 포트를 구현하면서 Tauri, ACP JSON-RPC, subprocess, 파일시스템, 권한 결정 등 외부 프로토콜을 격리한다.
 
+이 방향은 CI에서 `npm run check:backend-boundaries`로 검사한다. 검사는 `src-tauri/src/{domain,ports,application}`의 Rust `use crate::...` 경로를 확인하며 다음 역방향 의존을 실패 처리한다.
+
+- `domain` → `ports`, `application`, `adapters`
+- `ports` → `application`, `adapters`
+- `application` → `adapters`
+
+검사 스크립트는 `scripts/check-backend-boundaries.mjs`에 있으며, 파서 자체의 기본 동작은 `npm run check:backend-boundaries:self-test`로 확인할 수 있다.
+
 ## 주요 포트
 
 | 포트 | 책임 |
