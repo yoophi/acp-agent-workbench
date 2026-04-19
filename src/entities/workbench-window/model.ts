@@ -9,3 +9,7 @@ export type WorkbenchWindowBootstrap = {
   isMain: boolean;
   detachedTab?: unknown;
 };
+
+export type WorkbenchWindowCloseRequest = {
+  activeRunCount: number;
+};

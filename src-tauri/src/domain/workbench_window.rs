@@ -20,6 +20,12 @@ pub struct WorkbenchWindowBootstrap {
     pub detached_tab: Option<Value>,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkbenchWindowCloseRequest {
+    pub active_run_count: usize,
+}
+
 impl WorkbenchWindowInfo {
     pub fn new(label: impl Into<String>, title: impl Into<String>) -> Self {
         let label = label.into();
@@ -39,5 +45,11 @@ impl WorkbenchWindowBootstrap {
             label,
             detached_tab,
         }
+    }
+}
+
+impl WorkbenchWindowCloseRequest {
+    pub fn new(active_run_count: usize) -> Self {
+        Self { active_run_count }
     }
 }

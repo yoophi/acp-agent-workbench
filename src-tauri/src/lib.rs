@@ -8,20 +8,24 @@ use adapters::{
     storage_state::StorageState,
     tauri::commands::{
         cancel_agent_run, cleanup_workspace_task_worktree, clear_acp_session,
-        create_github_pull_request, create_pull_request_review_draft, create_saved_prompt,
-        create_workspace_commit, delete_pull_request_review_draft, delete_saved_prompt, detach_tab,
-        get_github_pull_request_context, get_window_bootstrap, get_workspace_git_status,
-        list_acp_sessions, list_agents, list_pull_request_review_drafts, list_saved_prompts,
-        list_workbench_windows, list_workspace_checkouts, list_workspaces, load_goal_file,
-        open_workbench_window, provision_workspace_task_worktree, push_workspace_branch,
-        record_saved_prompt_used, refresh_workspace_checkout, register_workspace_from_path,
-        remove_workspace, resolve_workspace_workdir, respond_agent_permission, send_prompt_to_run,
-        start_agent_run, submit_github_pull_request_review, summarize_workspace_diff,
-        transfer_run_owner, update_pull_request_review_draft, update_saved_prompt,
+        close_workbench_window, create_github_pull_request, create_pull_request_review_draft,
+        create_saved_prompt, create_workspace_commit, delete_pull_request_review_draft,
+        delete_saved_prompt, detach_tab, get_github_pull_request_context, get_window_bootstrap,
+        get_workspace_git_status, list_acp_sessions, list_agents, list_pull_request_review_drafts,
+        list_saved_prompts, list_workbench_windows, list_workspace_checkouts, list_workspaces,
+        load_goal_file, open_workbench_window, provision_workspace_task_worktree,
+        push_workspace_branch, record_saved_prompt_used, refresh_workspace_checkout,
+        register_workspace_from_path, remove_workspace, resolve_workspace_workdir,
+        respond_agent_permission, send_prompt_to_run, start_agent_run,
+        submit_github_pull_request_review, summarize_workspace_diff, transfer_run_owner,
+        update_pull_request_review_draft, update_saved_prompt,
     },
 };
+use domain::workbench_window::WorkbenchWindowCloseRequest;
 use ports::session_registry::SessionRegistry;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+
+const WORKBENCH_WINDOW_CLOSE_REQUESTED_EVENT: &str = "workbench-window-close-requested";
 
 pub fn run() {
     let app_state = AppState::default();
@@ -36,14 +40,30 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(move |window, event| {
-            if matches!(event, tauri::WindowEvent::Destroyed) {
-                let label = window.label().to_string();
-                let state = cleanup_state.clone();
-                tauri::async_runtime::spawn(async move {
-                    for run_id in state.runs_owned_by(&label).await {
-                        state.cancel_run(&run_id).await;
+            let label = window.label().to_string();
+            match event {
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    let state = cleanup_state.clone();
+                    let approved =
+                        tauri::async_runtime::block_on(state.take_window_close_approval(&label));
+                    let owned_runs = tauri::async_runtime::block_on(state.runs_owned_by(&label));
+                    if !approved && !owned_runs.is_empty() {
+                        api.prevent_close();
+                        let _ = window.emit(
+                            WORKBENCH_WINDOW_CLOSE_REQUESTED_EVENT,
+                            WorkbenchWindowCloseRequest::new(owned_runs.len()),
+                        );
                     }
-                });
+                }
+                tauri::WindowEvent::Destroyed => {
+                    let state = cleanup_state.clone();
+                    tauri::async_runtime::spawn(async move {
+                        for run_id in state.runs_owned_by(&label).await {
+                            state.cancel_run(&run_id).await;
+                        }
+                    });
+                }
+                _ => {}
             }
         })
         .manage(app_state)
@@ -53,6 +73,7 @@ pub fn run() {
             get_window_bootstrap,
             list_workbench_windows,
             open_workbench_window,
+            close_workbench_window,
             detach_tab,
             start_agent_run,
             send_prompt_to_run,
