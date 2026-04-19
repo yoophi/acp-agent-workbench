@@ -357,17 +357,6 @@ pub async fn push_workspace_branch(
 }
 
 #[tauri::command]
-pub async fn create_github_pull_request(
-    storage: State<'_, StorageState>,
-    request: GitHubPullRequestCreateRequest,
-) -> Result<GitHubPullRequestSummary, String> {
-    WorkspaceGitUseCase::new(storage.workspace_store(), LocalGitRepository)
-        .create_pull_request(GhCliPullRequestClient, request)
-        .await
-        .map_err(|err| err.to_string())
-}
-
-#[tauri::command]
 pub async fn provision_workspace_task_worktree(
     storage: State<'_, StorageState>,
     workspace_id: String,
@@ -376,6 +365,17 @@ pub async fn provision_workspace_task_worktree(
 ) -> Result<WorkspaceCheckout, String> {
     WorkspaceTaskWorktreeUseCase::new(storage.workspace_store(), LocalGitRepository)
         .provision(&workspace_id, checkout_id.as_deref(), task_slug.as_deref())
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn create_github_pull_request(
+    storage: State<'_, StorageState>,
+    request: GitHubPullRequestCreateRequest,
+) -> Result<GitHubPullRequestSummary, String> {
+    WorkspaceGitUseCase::new(storage.workspace_store(), LocalGitRepository)
+        .create_pull_request(GhCliPullRequestClient, request)
         .await
         .map_err(|err| err.to_string())
 }
