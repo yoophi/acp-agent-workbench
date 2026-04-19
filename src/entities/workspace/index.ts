@@ -1,4 +1,5 @@
 export type {
+  CreatePullRequestReviewDraftInput,
   GitHubPullRequestCreateRequest,
   GitHubPullRequestContext,
   GitHubPullRequestContextRequest,
@@ -8,7 +9,12 @@ export type {
   GitHubPullRequestReviewResult,
   GitHubPullRequestSummary,
   GitOrigin,
+  PullRequestReviewComment,
+  PullRequestReviewCommentSide,
+  PullRequestReviewDecision,
+  PullRequestReviewDraft,
   RegisteredWorkspace,
+  UpdatePullRequestReviewDraftPatch,
   Workspace,
   WorkspaceCheckout,
   WorkspaceCommitRequest,

@@ -29,6 +29,10 @@ use crate::{
             WorkspaceCommitResult, WorkspaceDiffSummary, WorkspaceGitStatus, WorkspacePushRequest,
             WorkspacePushResult,
         },
+        pull_request_review::{
+            CreatePullRequestReviewDraftInput, PullRequestReviewDraft, PullRequestReviewDraftId,
+            UpdatePullRequestReviewDraftPatch,
+        },
         run::{AgentRun, AgentRunRequest, ResumePolicy},
         saved_prompt::{
             CreateSavedPromptInput, SavedPrompt, SavedPromptId, UpdateSavedPromptPatch,
@@ -38,6 +42,7 @@ use crate::{
     },
     ports::{
         acp_session_store::AcpSessionStore, agent_catalog::AgentCatalog,
+        pull_request_review_store::PullRequestReviewDraftStore,
         saved_prompt_store::SavedPromptStore, workspace_store::WorkspaceStore,
     },
 };
@@ -433,6 +438,56 @@ pub async fn submit_github_pull_request_review(
 ) -> Result<GitHubPullRequestReviewResult, String> {
     WorkspaceGitUseCase::new(storage.workspace_store(), LocalGitRepository)
         .submit_pull_request_review(GhCliPullRequestClient, request)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn list_pull_request_review_drafts(
+    storage: State<'_, StorageState>,
+    workspace_id: String,
+    pull_request_number: Option<u64>,
+) -> Result<Vec<PullRequestReviewDraft>, String> {
+    storage
+        .pull_request_review_draft_store()
+        .list_pull_request_review_drafts(&workspace_id, pull_request_number)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn create_pull_request_review_draft(
+    storage: State<'_, StorageState>,
+    input: CreatePullRequestReviewDraftInput,
+) -> Result<PullRequestReviewDraft, String> {
+    storage
+        .pull_request_review_draft_store()
+        .create_pull_request_review_draft(input)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn update_pull_request_review_draft(
+    storage: State<'_, StorageState>,
+    id: PullRequestReviewDraftId,
+    patch: UpdatePullRequestReviewDraftPatch,
+) -> Result<Option<PullRequestReviewDraft>, String> {
+    storage
+        .pull_request_review_draft_store()
+        .update_pull_request_review_draft(&id, patch)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn delete_pull_request_review_draft(
+    storage: State<'_, StorageState>,
+    id: PullRequestReviewDraftId,
+) -> Result<(), String> {
+    storage
+        .pull_request_review_draft_store()
+        .delete_pull_request_review_draft(&id)
         .await
         .map_err(|err| err.to_string())
 }

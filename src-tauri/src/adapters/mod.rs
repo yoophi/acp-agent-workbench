@@ -5,6 +5,7 @@ pub mod fs;
 pub mod git;
 pub mod github;
 pub mod permission_broker;
+pub mod pull_request_review_store_sqlite;
 pub mod saved_prompt_store_sqlite;
 pub mod session_registry;
 pub mod sqlite;

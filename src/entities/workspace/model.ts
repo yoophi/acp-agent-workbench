@@ -137,3 +137,40 @@ export type GitHubPullRequestReviewResult = {
   decision: GitHubPullRequestReviewDecision;
   submitted: boolean;
 };
+
+export type PullRequestReviewDecision = "comment" | "approve" | "request_changes";
+export type PullRequestReviewCommentSide = "LEFT" | "RIGHT";
+
+export type PullRequestReviewComment = {
+  path: string;
+  line?: number | null;
+  side?: PullRequestReviewCommentSide | null;
+  body: string;
+};
+
+export type PullRequestReviewDraft = {
+  id: string;
+  workspaceId: string;
+  checkoutId?: string | null;
+  pullRequestNumber: number;
+  runId?: string | null;
+  summary: string;
+  decision: PullRequestReviewDecision;
+  comments: PullRequestReviewComment[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreatePullRequestReviewDraftInput = {
+  workspaceId: string;
+  checkoutId?: string | null;
+  pullRequestNumber: number;
+  runId?: string | null;
+  summary: string;
+  decision: PullRequestReviewDecision;
+  comments: PullRequestReviewComment[];
+};
+
+export type UpdatePullRequestReviewDraftPatch = Partial<
+  Pick<CreatePullRequestReviewDraftInput, "checkoutId" | "runId" | "summary" | "decision" | "comments">
+>;
