@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, ListChecks, RefreshCw, SendToBack } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ListChecks, Play, RefreshCw, SendToBack } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LocalTaskList, LocalTaskSummary } from "../../entities/workspace";
 import { listLocalTasks } from "../../features/agent-run";
@@ -8,7 +8,8 @@ type LocalTasksPanelProps = {
   workspaceId: string | null;
   checkoutId: string | null;
   sessionActive?: boolean;
-  onApplyTaskGoal: (goal: string) => void;
+  onApplyTaskGoal: (goal: string, task: LocalTaskSummary) => void;
+  onRunTask: (task: LocalTaskSummary, goal: string) => void;
   onError: (error: string | null) => void;
 };
 
@@ -19,6 +20,7 @@ export function LocalTasksPanel({
   checkoutId,
   sessionActive = false,
   onApplyTaskGoal,
+  onRunTask,
   onError,
 }: LocalTasksPanelProps) {
   const [result, setResult] = useState<LocalTaskList | null>(null);
@@ -186,6 +188,7 @@ export function LocalTasksPanel({
                 task={selectedTask}
                 sessionActive={sessionActive}
                 onApplyTaskGoal={onApplyTaskGoal}
+                onRunTask={onRunTask}
               />
             ) : null}
           </div>
@@ -198,10 +201,11 @@ export function LocalTasksPanel({
 type TaskDetailsProps = {
   task: LocalTaskSummary;
   sessionActive: boolean;
-  onApplyTaskGoal: (goal: string) => void;
+  onApplyTaskGoal: (goal: string, task: LocalTaskSummary) => void;
+  onRunTask: (task: LocalTaskSummary, goal: string) => void;
 };
 
-function TaskDetails({ task, sessionActive, onApplyTaskGoal }: TaskDetailsProps) {
+function TaskDetails({ task, sessionActive, onApplyTaskGoal, onRunTask }: TaskDetailsProps) {
   const goal = useMemo(() => composeTaskGoal(task), [task]);
 
   return (
@@ -230,9 +234,20 @@ function TaskDetails({ task, sessionActive, onApplyTaskGoal }: TaskDetailsProps)
           size="sm"
           icon={<SendToBack size={14} />}
           disabled={sessionActive}
-          onClick={() => onApplyTaskGoal(goal)}
+          onClick={() => onApplyTaskGoal(goal, task)}
         >
           Use as goal
+        </Button>
+        <Button
+          type="button"
+          variant="primary"
+          size="sm"
+          icon={<Play size={14} />}
+          disabled={sessionActive}
+          onClick={() => onRunTask(task, goal)}
+          title={task.blocked ? "Blocked tasks require confirmation before running" : undefined}
+        >
+          Run task
         </Button>
       </div>
 

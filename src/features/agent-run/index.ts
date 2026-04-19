@@ -17,7 +17,7 @@ export {
   type WorkbenchTabListItem,
 } from "./tabApi";
 export { useAgentRun } from "./useAgentRun";
-export { type FollowUpQueueItem } from "./model";
+export { type FollowUpQueueItem, type LocalTaskRunSource } from "./model";
 export {
   cleanupWorkspaceTaskWorktree,
   clearAcpSession,

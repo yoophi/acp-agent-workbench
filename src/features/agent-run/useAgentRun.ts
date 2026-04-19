@@ -21,12 +21,14 @@ import type {
 import type { SavedPromptRunMode } from "../../entities/saved-prompt";
 import {
   defaultRalphLoopSettings,
+  localTaskRunSource,
   selectTab,
   selectTabList,
   useWorkbenchStore,
   type TabState,
   type FollowUpQueueItem,
 } from "./model";
+import type { LocalTaskSummary } from "../../entities/workspace";
 
 const EMPTY_FOLLOW_UP_QUEUE: FollowUpQueueItem[] = [];
 const EMPTY_ITEMS: TimelineItem[] = [];
@@ -140,7 +142,9 @@ export function useAgentRun(tabId: string) {
         const worktree = await provisionWorkspaceTaskWorktree({
           workspaceId: current.workspaceId,
           checkoutId,
-          taskSlug: trimmedGoal,
+          taskSlug: current.sourceTask
+            ? `${current.sourceTask.id}-${current.sourceTask.title}`
+            : trimmedGoal,
         });
         checkoutId = worktree.id;
         provisionedCheckoutId = worktree.id;
@@ -178,6 +182,30 @@ export function useAgentRun(tabId: string) {
     }
   }, [acpSessionsQuery, tabId, patch]);
 
+  const runLocalTask = useCallback(
+    async (task: LocalTaskSummary, goal: string) => {
+      if (
+        task.blocked &&
+        !window.confirm(
+          `Task ${task.id} is blocked by unfinished dependencies. Start it anyway?`,
+        )
+      ) {
+        return;
+      }
+      const trimmed = goal.trim();
+      if (!trimmed) {
+        patch({ error: "Task goal is empty." });
+        return;
+      }
+      useWorkbenchStore.getState().patchTab(tabId, {
+        goal: trimmed,
+        sourceTask: localTaskRunSource(task),
+      });
+      await run();
+    },
+    [patch, run, tabId],
+  );
+
   const cancel = useCallback(async () => {
     const current = selectTab(useWorkbenchStore.getState(), tabId);
     if (!current?.activeRunId) return;
@@ -207,7 +235,7 @@ export function useAgentRun(tabId: string) {
       const trimmed = body.trim();
       if (!current || !trimmed) return;
       if (!current.sessionActive) {
-        store.patchTab(tabId, { goal: trimmed });
+        store.patchTab(tabId, { goal: trimmed, sourceTask: null });
         return;
       }
       if (runMode === "insert") {
@@ -228,7 +256,15 @@ export function useAgentRun(tabId: string) {
     (value: string) => patch({ selectedAgentId: value }),
     [patch],
   );
-  const setGoal = useCallback((value: string) => patch({ goal: value }), [patch]);
+  const setGoal = useCallback((value: string) => patch({ goal: value, sourceTask: null }), [patch]);
+  const setGoalFromTask = useCallback(
+    (value: string, task?: LocalTaskSummary) =>
+      patch({
+        goal: value,
+        sourceTask: task ? localTaskRunSource(task) : null,
+      }),
+    [patch],
+  );
   const setCwd = useCallback((value: string) => patch({ cwd: value }), [patch]);
   const setCustomCommand = useCallback(
     (value: string) => patch({ customCommand: value }),
@@ -279,6 +315,7 @@ export function useAgentRun(tabId: string) {
     setSelectedAgentId,
     goal: tab?.goal ?? "",
     setGoal,
+    setGoalFromTask,
     cwd: tab?.cwd ?? "",
     setCwd,
     customCommand: tab?.customCommand ?? "",
@@ -298,6 +335,7 @@ export function useAgentRun(tabId: string) {
     setIdleTimeoutSec,
     idleRemainingSec: tab?.idleRemainingSec ?? null,
     activeRunId: tab?.activeRunId ?? null,
+    sourceTask: tab?.sourceTask ?? null,
     sessionActive: tab?.sessionActive ?? false,
     awaitingResponse: tab?.awaitingResponse ?? false,
     isRunning: tab?.sessionActive ?? false,
@@ -308,6 +346,7 @@ export function useAgentRun(tabId: string) {
     error: tab?.error ?? (agentsQuery.error ? String(agentsQuery.error) : null),
     setError,
     run,
+    runLocalTask,
     cancel,
     send,
     applySavedPrompt,

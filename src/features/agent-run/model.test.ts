@@ -50,6 +50,12 @@ describe("workspace-scoped run state", () => {
       cwd: "/repo/workbench",
       goal: "implement workspace tabs",
       selectedAgentId: "claude-code",
+      sourceTask: {
+        id: "bd-123",
+        title: "Implement workspace tabs",
+        status: "todo",
+        blocked: false,
+      },
     });
 
     useWorkbenchStore.getState().beginRun(tabId, "run-1");
@@ -69,6 +75,10 @@ describe("workspace-scoped run state", () => {
       cwd: "/repo/workbench",
       sessionActive: true,
       awaitingResponse: true,
+      sourceTask: {
+        id: "bd-123",
+        title: "Implement workspace tabs",
+      },
     });
     expect(run?.request).toMatchObject({
       goal: "implement workspace tabs",
@@ -170,6 +180,7 @@ describe("workspace-scoped run state", () => {
       ],
       filter: "all" as const,
       error: null,
+      sourceTask: null,
       unreadCount: 2,
       permissionPending: false,
       closing: true,

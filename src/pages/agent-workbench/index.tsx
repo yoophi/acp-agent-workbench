@@ -40,7 +40,8 @@ export function AgentWorkbenchPage() {
         workspaceId={state.workspaceId}
         checkoutId={state.checkoutId}
         sessionActive={state.sessionActive}
-        onApplyTaskGoal={state.setGoal}
+        onApplyTaskGoal={state.setGoalFromTask}
+        onRunTask={(task, goal) => void state.runLocalTask(task, goal)}
         onError={state.setError}
       />
       <WorkspacePrPublishPanel workspaceId={state.workspaceId} checkoutId={state.checkoutId} />
@@ -84,6 +85,7 @@ export function AgentWorkbenchPage() {
             idleRemainingSec={state.idleRemainingSec}
             isRunning={state.isRunning}
             activeRunId={state.activeRunId}
+            sourceTask={state.sourceTask}
             onRun={state.run}
             onCancel={state.cancel}
           />
