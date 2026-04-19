@@ -3,6 +3,7 @@ import { GoalEditor } from "../../features/goal-input";
 import { EventStream } from "../../widgets/event-stream";
 import { FollowUpComposer } from "../../widgets/follow-up-composer";
 import { FollowUpQueue } from "../../widgets/follow-up-queue";
+import { LocalTasksPanel } from "../../widgets/local-tasks";
 import { RunPanel } from "../../widgets/run-panel";
 import { SavedPromptsPanel } from "../../widgets/saved-prompts";
 import { TabBar } from "../../widgets/workbench-tabs";
@@ -35,6 +36,13 @@ export function AgentWorkbenchPage() {
 
       <WorkspaceBar tabId={activeTabId} disabled={state.sessionActive} />
       <WorkspaceGitPanel workspaceId={state.workspaceId} checkoutId={state.checkoutId} />
+      <LocalTasksPanel
+        workspaceId={state.workspaceId}
+        checkoutId={state.checkoutId}
+        sessionActive={state.sessionActive}
+        onApplyTaskGoal={state.setGoal}
+        onError={state.setError}
+      />
       <WorkspacePrPublishPanel workspaceId={state.workspaceId} checkoutId={state.checkoutId} />
       <WorkspacePrReviewPanel
         workspaceId={state.workspaceId}
