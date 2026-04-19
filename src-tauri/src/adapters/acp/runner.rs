@@ -16,14 +16,16 @@ use crate::{
     },
     domain::{
         events::{LifecycleStatus, RunEvent},
-        run::AgentRunRequest,
+        run::{AgentRunRequest, ResumePolicy},
     },
     ports::{
         agent_catalog::AgentCatalog,
         event_sink::RunEventSink,
         permission::PermissionDecisionPort,
         session_handle::SessionHandle,
-        session_launcher::{AbortFuture, DriverFuture, LaunchedSession, RunCommander, SessionLauncher},
+        session_launcher::{
+            AbortFuture, DriverFuture, LaunchedSession, RunCommander, SessionLauncher,
+        },
     },
 };
 
@@ -172,7 +174,20 @@ where
             ),
         );
 
-        let session_id = create_agent_session(&peer, &workspace).await?;
+        let resume_policy = request.resume_policy.unwrap_or_default();
+        let session_id = if let Some(session_id) =
+            resume_session_id(request.resume_session_id.as_deref(), resume_policy)
+        {
+            sink.emit(
+                &run_id,
+                RunEvent::Diagnostic {
+                    message: format!("resuming ACP session {session_id}"),
+                },
+            );
+            session_id
+        } else {
+            create_agent_session(&peer, &workspace).await?
+        };
         sink.emit(
             &run_id,
             lifecycle(LifecycleStatus::SessionCreated, session_id.clone()),
@@ -183,6 +198,7 @@ where
             session_id: Mutex::new(session_id),
             workspace,
             peer,
+            resume_policy,
             in_flight: Mutex::new(()),
         });
 
@@ -350,6 +366,7 @@ pub struct AcpSession {
     pub peer: RpcPeer,
     session_id: Mutex<String>,
     workspace: PathBuf,
+    resume_policy: ResumePolicy,
     in_flight: Mutex<()>,
 }
 
@@ -396,6 +413,9 @@ impl SessionHandle for AcpSession {
                         .to_string();
                 }
                 Err(err) if !reissued && is_session_not_found(&err) => {
+                    if !should_reissue_missing_session(self.resume_policy) {
+                        return Err(anyhow!("resume session not found: {current_id}"));
+                    }
                     reissued = true;
                     sink.emit(
                         &self.run_id,
@@ -425,11 +445,24 @@ impl SessionHandle for AcpSession {
         );
         Ok(stop_reason)
     }
-
 }
 
 fn normalize_workspace(path: &str) -> Result<PathBuf> {
     normalize_path(&expand_tilde(path))
+}
+
+fn resume_session_id(session_id: Option<&str>, resume_policy: ResumePolicy) -> Option<String> {
+    match resume_policy {
+        ResumePolicy::Fresh => None,
+        ResumePolicy::ResumeIfAvailable | ResumePolicy::ResumeRequired => session_id
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string),
+    }
+}
+
+fn should_reissue_missing_session(resume_policy: ResumePolicy) -> bool {
+    !matches!(resume_policy, ResumePolicy::ResumeRequired)
 }
 
 async fn create_agent_session(peer: &RpcPeer, workspace: &PathBuf) -> Result<String> {
@@ -466,4 +499,45 @@ fn is_session_not_found(err: &RpcError) -> bool {
         }
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{resume_session_id, should_reissue_missing_session};
+    use crate::domain::run::ResumePolicy;
+
+    #[test]
+    fn fresh_policy_ignores_resume_session_id() {
+        assert_eq!(
+            resume_session_id(Some("session-1"), ResumePolicy::Fresh),
+            None
+        );
+    }
+
+    #[test]
+    fn resume_policies_use_non_empty_session_id() {
+        assert_eq!(
+            resume_session_id(Some(" session-1 "), ResumePolicy::ResumeIfAvailable),
+            Some("session-1".to_string())
+        );
+        assert_eq!(
+            resume_session_id(Some("session-2"), ResumePolicy::ResumeRequired),
+            Some("session-2".to_string())
+        );
+        assert_eq!(
+            resume_session_id(Some("  "), ResumePolicy::ResumeRequired),
+            None
+        );
+    }
+
+    #[test]
+    fn resume_required_does_not_reissue_missing_session() {
+        assert!(should_reissue_missing_session(ResumePolicy::Fresh));
+        assert!(should_reissue_missing_session(
+            ResumePolicy::ResumeIfAvailable
+        ));
+        assert!(!should_reissue_missing_session(
+            ResumePolicy::ResumeRequired
+        ));
+    }
 }

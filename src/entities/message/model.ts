@@ -8,6 +8,8 @@ export type AgentRunRequest = {
   agentCommand?: string;
   stdioBufferLimitMb?: number;
   autoAllow?: boolean;
+  resumeSessionId?: string;
+  resumePolicy?: "fresh" | "resumeIfAvailable" | "resumeRequired";
 };
 
 export type AgentRun = {
