@@ -8,12 +8,13 @@ use adapters::{
     storage_state::StorageState,
     tauri::commands::{
         cancel_agent_run, create_github_pull_request, create_saved_prompt, create_workspace_commit,
-        delete_saved_prompt, get_workspace_git_status, get_window_bootstrap, list_agents,
+        delete_saved_prompt, get_window_bootstrap, get_workspace_git_status, list_agents,
         list_saved_prompts, list_workbench_windows, list_workspace_checkouts, list_workspaces,
-        load_goal_file, open_workbench_window, push_workspace_branch,
-        record_saved_prompt_used, refresh_workspace_checkout, register_workspace_from_path,
-        remove_workspace, resolve_workspace_workdir, respond_agent_permission, send_prompt_to_run,
-        start_agent_run, summarize_workspace_diff, update_saved_prompt,
+        load_goal_file, open_workbench_window, provision_workspace_task_worktree,
+        push_workspace_branch, record_saved_prompt_used, refresh_workspace_checkout,
+        register_workspace_from_path, remove_workspace, resolve_workspace_workdir,
+        respond_agent_permission, send_prompt_to_run, start_agent_run, summarize_workspace_diff,
+        update_saved_prompt,
     },
 };
 use tauri::Manager;
@@ -49,6 +50,7 @@ pub fn run() {
             create_workspace_commit,
             push_workspace_branch,
             create_github_pull_request,
+            provision_workspace_task_worktree,
             list_saved_prompts,
             create_saved_prompt,
             update_saved_prompt,

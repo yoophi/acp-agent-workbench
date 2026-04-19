@@ -27,6 +27,7 @@ export {
   listSavedPrompts,
   pushWorkspaceBranch,
   recordSavedPromptUsed,
+  provisionWorkspaceTaskWorktree,
   refreshWorkspaceCheckout,
   registerWorkspaceFromPath,
   resolveWorkspaceWorkdir,
