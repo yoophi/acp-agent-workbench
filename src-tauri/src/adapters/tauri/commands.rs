@@ -1,10 +1,10 @@
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 
 use crate::{
     adapters::{
         acp::runner::AcpAgentRunner, agent_catalog::ConfigurableAgentCatalog,
-        fs::LocalGoalFileReader, session_registry::AppState, tauri::event_sink::TauriRunEventSink,
-        workspace_store::LocalWorkspaceStore,
+        fs::LocalGoalFileReader, session_registry::AppState, storage_state::StorageState,
+        tauri::event_sink::TauriRunEventSink,
     },
     application::{
         cancel_agent_run::CancelAgentRunUseCase, list_agents::ListAgentsUseCase,
@@ -36,9 +36,10 @@ pub fn load_goal_file(path: String) -> Result<String, String> {
 pub async fn start_agent_run(
     app: AppHandle,
     state: State<'_, AppState>,
+    storage: State<'_, StorageState>,
     mut request: AgentRunRequest,
 ) -> Result<AgentRun, String> {
-    let workspace_store = workspace_store(&app)?;
+    let workspace_store = storage.workspace_store();
     let resolved_cwd = ResolveWorkdirUseCase::new(workspace_store)
         .execute(
             request.workspace_id.as_deref(),
@@ -104,8 +105,9 @@ pub async fn respond_agent_permission(
 }
 
 #[tauri::command]
-pub async fn list_workspaces(app: AppHandle) -> Result<Vec<Workspace>, String> {
-    workspace_store(&app)?
+pub async fn list_workspaces(storage: State<'_, StorageState>) -> Result<Vec<Workspace>, String> {
+    storage
+        .workspace_store()
         .list_workspaces()
         .await
         .map_err(|err| err.to_string())
@@ -113,18 +115,23 @@ pub async fn list_workspaces(app: AppHandle) -> Result<Vec<Workspace>, String> {
 
 #[tauri::command]
 pub async fn register_workspace_from_path(
-    app: AppHandle,
+    storage: State<'_, StorageState>,
     path: String,
 ) -> Result<RegisteredWorkspace, String> {
-    workspace_store(&app)?
+    storage
+        .workspace_store()
         .register_from_path(&path)
         .await
         .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
-pub async fn remove_workspace(app: AppHandle, workspace_id: String) -> Result<(), String> {
-    workspace_store(&app)?
+pub async fn remove_workspace(
+    storage: State<'_, StorageState>,
+    workspace_id: String,
+) -> Result<(), String> {
+    storage
+        .workspace_store()
         .remove_workspace(&workspace_id)
         .await
         .map_err(|err| err.to_string())
@@ -132,10 +139,11 @@ pub async fn remove_workspace(app: AppHandle, workspace_id: String) -> Result<()
 
 #[tauri::command]
 pub async fn list_workspace_checkouts(
-    app: AppHandle,
+    storage: State<'_, StorageState>,
     workspace_id: String,
 ) -> Result<Vec<WorkspaceCheckout>, String> {
-    workspace_store(&app)?
+    storage
+        .workspace_store()
         .list_checkouts(&workspace_id)
         .await
         .map_err(|err| err.to_string())
@@ -143,10 +151,11 @@ pub async fn list_workspace_checkouts(
 
 #[tauri::command]
 pub async fn refresh_workspace_checkout(
-    app: AppHandle,
+    storage: State<'_, StorageState>,
     checkout_id: String,
 ) -> Result<Option<WorkspaceCheckout>, String> {
-    workspace_store(&app)?
+    storage
+        .workspace_store()
         .refresh_checkout(&checkout_id)
         .await
         .map_err(|err| err.to_string())
@@ -154,12 +163,12 @@ pub async fn refresh_workspace_checkout(
 
 #[tauri::command]
 pub async fn resolve_workspace_workdir(
-    app: AppHandle,
+    storage: State<'_, StorageState>,
     workspace_id: Option<String>,
     checkout_id: Option<String>,
     cwd: Option<String>,
 ) -> Result<Option<String>, String> {
-    ResolveWorkdirUseCase::new(workspace_store(&app)?)
+    ResolveWorkdirUseCase::new(storage.workspace_store())
         .execute(
             workspace_id.as_deref(),
             checkout_id.as_deref(),
@@ -168,9 +177,4 @@ pub async fn resolve_workspace_workdir(
         .await
         .map(|path| path.map(|value| value.to_string_lossy().to_string()))
         .map_err(|err| err.to_string())
-}
-
-fn workspace_store(app: &AppHandle) -> Result<LocalWorkspaceStore, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|err| err.to_string())?;
-    Ok(LocalWorkspaceStore::new(app_data_dir))
 }
