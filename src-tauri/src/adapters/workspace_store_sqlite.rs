@@ -53,6 +53,20 @@ impl SqliteWorkspaceStore {
             checkout,
         })
     }
+
+    pub async fn import_workspace_with_checkouts(
+        &self,
+        workspace: Workspace,
+        checkouts: Vec<WorkspaceCheckout>,
+    ) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        upsert_workspace(&mut tx, &workspace).await?;
+        for checkout in checkouts {
+            upsert_checkout(&mut tx, &checkout).await?;
+        }
+        tx.commit().await?;
+        Ok(())
+    }
 }
 
 impl WorkspaceStore for SqliteWorkspaceStore {
