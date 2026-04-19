@@ -1,6 +1,27 @@
 use anyhow::Result;
+use std::fmt;
 use std::{future::Future, sync::Arc};
 use tokio::task::JoinHandle;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReserveRunError {
+    DuplicateRunId { run_id: String },
+    ConcurrentLimit { limit: usize },
+}
+
+impl fmt::Display for ReserveRunError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DuplicateRunId { run_id } => write!(f, "duplicate run id: {run_id}"),
+            Self::ConcurrentLimit { limit } => write!(
+                f,
+                "concurrent run limit ({limit}) reached; cancel an existing run before starting a new one"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ReserveRunError {}
 
 /// Storage for in-flight agent runs and their sessions.
 ///
@@ -12,7 +33,10 @@ use tokio::task::JoinHandle;
 pub trait SessionRegistry: Clone + Send + Sync + 'static {
     type Session: Send + Sync + 'static;
 
-    fn reserve_run(&self, run_id: String) -> impl Future<Output = Result<()>> + Send;
+    fn reserve_run(
+        &self,
+        run_id: String,
+    ) -> impl Future<Output = Result<(), ReserveRunError>> + Send;
 
     fn attach_run_handle(
         &self,

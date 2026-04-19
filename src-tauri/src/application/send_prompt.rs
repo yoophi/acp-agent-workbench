@@ -65,7 +65,7 @@ where
 mod tests {
     use super::*;
     use crate::application::errors::SendPromptError;
-    use crate::ports::session_registry::SessionRegistry;
+    use crate::ports::session_registry::{ReserveRunError, SessionRegistry};
     use anyhow::{Result, anyhow};
     use std::{
         collections::HashMap,
@@ -121,7 +121,7 @@ mod tests {
     impl SessionRegistry for FakeRegistry {
         type Session = FakeSession;
 
-        async fn reserve_run(&self, _: String) -> Result<()> {
+        async fn reserve_run(&self, _: String) -> Result<(), ReserveRunError> {
             Ok(())
         }
         async fn attach_run_handle(&self, _: &str, handle: JoinHandle<()>) -> Result<()> {

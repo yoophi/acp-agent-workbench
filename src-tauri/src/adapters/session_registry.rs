@@ -4,7 +4,7 @@ use tokio::{sync::Mutex, task::JoinHandle};
 
 use crate::{
     adapters::{acp::runner::AcpSession, permission_broker::PermissionBroker},
-    ports::session_registry::SessionRegistry,
+    ports::session_registry::{ReserveRunError, SessionRegistry},
 };
 
 const MAX_RUNS_ENV: &str = "ACP_WORKBENCH_MAX_RUNS";
@@ -56,16 +56,14 @@ struct RunContext {
 impl SessionRegistry for AppState {
     type Session = AcpSession;
 
-    async fn reserve_run(&self, run_id: String) -> Result<()> {
+    async fn reserve_run(&self, run_id: String) -> Result<(), ReserveRunError> {
         let mut runs = self.runs.lock().await;
         if runs.contains_key(&run_id) {
-            return Err(anyhow!("duplicate run id: {run_id}"));
+            return Err(ReserveRunError::DuplicateRunId { run_id });
         }
         if let Some(limit) = self.max_concurrent_runs {
             if runs.len() >= limit {
-                return Err(anyhow!(
-                    "concurrent run limit ({limit}) reached; cancel an existing run before starting a new one"
-                ));
+                return Err(ReserveRunError::ConcurrentLimit { limit });
             }
         }
         runs.insert(run_id, RunSlot::Reserved);
@@ -92,7 +90,9 @@ impl SessionRegistry for AppState {
                 ctx.session = Some(session);
                 Ok(())
             }
-            _ => Err(anyhow!("agent run was cancelled before session was attached")),
+            _ => Err(anyhow!(
+                "agent run was cancelled before session was attached"
+            )),
         }
     }
 
@@ -123,7 +123,6 @@ impl SessionRegistry for AppState {
         }
         cancelled
     }
-
 }
 
 #[cfg(test)]
@@ -136,7 +135,7 @@ impl AppState {
 #[cfg(test)]
 mod tests {
     use super::AppState;
-    use crate::ports::session_registry::SessionRegistry;
+    use crate::ports::session_registry::{ReserveRunError, SessionRegistry};
 
     #[tokio::test]
     async fn reserve_run_allows_multiple_distinct_run_ids() {
@@ -160,7 +159,12 @@ mod tests {
             .reserve_run("run-a".into())
             .await
             .expect_err("duplicate reservation must fail");
-        assert!(err.to_string().contains("duplicate run id"));
+        assert_eq!(
+            err,
+            ReserveRunError::DuplicateRunId {
+                run_id: "run-a".into()
+            }
+        );
     }
 
     #[tokio::test]
@@ -182,7 +186,7 @@ mod tests {
             .reserve_run("run-b".into())
             .await
             .expect_err("second run should be rejected by the limit");
-        assert!(err.to_string().contains("concurrent run limit"));
+        assert_eq!(err, ReserveRunError::ConcurrentLimit { limit: 1 });
         assert!(state.cancel_run("run-a").await);
         state
             .reserve_run("run-b".into())
@@ -198,6 +202,11 @@ mod tests {
             .reserve_run("run-a".into())
             .await
             .expect_err("duplicate id must fail");
-        assert!(err.to_string().contains("duplicate run id"));
+        assert_eq!(
+            err,
+            ReserveRunError::DuplicateRunId {
+                run_id: "run-a".into()
+            }
+        );
     }
 }
