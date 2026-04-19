@@ -1,9 +1,15 @@
 export type {
+  GitHubPullRequestCreateRequest,
+  GitHubPullRequestSummary,
   GitOrigin,
   RegisteredWorkspace,
   Workspace,
   WorkspaceCheckout,
+  WorkspaceCommitRequest,
+  WorkspaceCommitResult,
   WorkspaceDiffSummary,
   WorkspaceGitFileStatus,
   WorkspaceGitStatus,
+  WorkspacePushRequest,
+  WorkspacePushResult,
 } from "./model";

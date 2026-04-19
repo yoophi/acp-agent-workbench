@@ -3,6 +3,7 @@ pub mod acp_session_store_sqlite;
 pub mod agent_catalog;
 pub mod fs;
 pub mod git;
+pub mod github;
 pub mod permission_broker;
 pub mod saved_prompt_store_sqlite;
 pub mod session_registry;

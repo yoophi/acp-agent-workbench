@@ -17,12 +17,15 @@ export {
 export { useAgentRun } from "./useAgentRun";
 export { type FollowUpQueueItem } from "./model";
 export {
+  createGitHubPullRequest,
   getWorkspaceGitStatus,
   listWorkspaceCheckouts,
   listWorkspaces,
+  createWorkspaceCommit,
   createSavedPrompt,
   deleteSavedPrompt,
   listSavedPrompts,
+  pushWorkspaceBranch,
   recordSavedPromptUsed,
   refreshWorkspaceCheckout,
   registerWorkspaceFromPath,

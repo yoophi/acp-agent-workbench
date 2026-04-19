@@ -48,3 +48,49 @@ export type WorkspaceDiffSummary = {
   status: WorkspaceGitStatus;
   diffStat: string;
 };
+
+export type WorkspaceCommitRequest = {
+  workspaceId: string;
+  checkoutId?: string | null;
+  message: string;
+  files: string[];
+  confirmed: boolean;
+};
+
+export type WorkspaceCommitResult = {
+  commitSha: string;
+  status: WorkspaceGitStatus;
+};
+
+export type WorkspacePushRequest = {
+  workspaceId: string;
+  checkoutId?: string | null;
+  remote?: string | null;
+  branch?: string | null;
+  setUpstream: boolean;
+  confirmed: boolean;
+};
+
+export type WorkspacePushResult = {
+  remote: string;
+  branch: string;
+};
+
+export type GitHubPullRequestCreateRequest = {
+  workspaceId: string;
+  checkoutId?: string | null;
+  base: string;
+  head?: string | null;
+  title: string;
+  body: string;
+  draft: boolean;
+  confirmed: boolean;
+};
+
+export type GitHubPullRequestSummary = {
+  number?: number | null;
+  url: string;
+  title: string;
+  baseRef: string;
+  headRef: string;
+};
