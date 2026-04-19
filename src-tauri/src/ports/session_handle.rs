@@ -13,11 +13,7 @@ pub trait SessionHandle: Send + Sync + 'static {
     /// Send a prompt to the session and return the stop reason reported
     /// by the agent. Streaming events are emitted through `sink` as
     /// they arrive.
-    fn send_prompt<S>(
-        &self,
-        sink: S,
-        text: String,
-    ) -> impl Future<Output = Result<String>> + Send
+    fn send_prompt<S>(&self, sink: S, text: String) -> impl Future<Output = Result<String>> + Send
     where
         S: RunEventSink;
 }

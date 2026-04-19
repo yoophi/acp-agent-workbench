@@ -40,9 +40,7 @@ pub fn map_session_update(params: &Value) -> MappedSessionUpdate {
         "agent_message_chunk" => update
             .pointer("/content/text")
             .and_then(Value::as_str)
-            .map(|text| {
-                MappedSessionUpdate::Event(RunEvent::AgentMessage { text: text.into() })
-            })
+            .map(|text| MappedSessionUpdate::Event(RunEvent::AgentMessage { text: text.into() }))
             .unwrap_or(MappedSessionUpdate::Ignored),
         "agent_thought_chunk" => update
             .pointer("/content/text")
@@ -233,7 +231,10 @@ mod tests {
         });
         match map_session_update(&tool_call) {
             MappedSessionUpdate::Tool(payload) => {
-                assert_eq!(payload.get("sessionUpdate").and_then(|v| v.as_str()), Some("tool_call"));
+                assert_eq!(
+                    payload.get("sessionUpdate").and_then(|v| v.as_str()),
+                    Some("tool_call")
+                );
             }
             other => panic!("unexpected mapping: {other:?}"),
         }
