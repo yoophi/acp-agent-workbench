@@ -8,9 +8,11 @@ vi.mock("../../shared/api", () => ({
 import { invokeCommand, listenEvent } from "../../shared/api";
 import {
   cancelAgentRun,
+  getWorkspaceGitStatus,
   listenRunEvents,
   sendPromptToRun,
   startAgentRun,
+  summarizeWorkspaceDiff,
 } from "./api";
 import { setupTauriListeners } from "../../test/tauri";
 
@@ -60,5 +62,21 @@ describe("agent-run api", () => {
 
     dispose();
     expect(events.count("agent-run-event")).toBe(0);
+  });
+
+  it("workspace git helpers pass the workspace and checkout ids", async () => {
+    mockedInvoke.mockResolvedValue(undefined);
+
+    await getWorkspaceGitStatus("ws-1", "co-1");
+    await summarizeWorkspaceDiff("ws-1", "co-1");
+
+    expect(mockedInvoke).toHaveBeenNthCalledWith(1, "get_workspace_git_status", {
+      workspaceId: "ws-1",
+      checkoutId: "co-1",
+    });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(2, "summarize_workspace_diff", {
+      workspaceId: "ws-1",
+      checkoutId: "co-1",
+    });
   });
 });
