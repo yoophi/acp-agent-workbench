@@ -69,6 +69,24 @@ function runBoundarySelfTest() {
       source: "let _ = crate::adapters::session_registry::AppState::default();",
       expected: 1,
     },
+    {
+      name: "restricted visibility use statements are checked",
+      layer: "application",
+      source: "pub(crate) use crate::adapters::session_registry::AppState;",
+      expected: 1,
+    },
+    {
+      name: "line and block comments are ignored",
+      layer: "ports",
+      source: `
+        // use crate::adapters::fs::LocalGoalFileReader;
+        /*
+          let _ = crate::application::list_agents::ListAgentsUseCase;
+        */
+        use crate::domain::agent::AgentDescriptor;
+      `,
+      expected: 0,
+    },
   ];
 
   for (const testCase of cases) {
@@ -87,9 +105,10 @@ function runBoundarySelfTest() {
 }
 
 function validateSource(file, layer, source) {
+  const sourceWithoutComments = stripRustComments(source);
   const forbiddenLayers = layerRules.get(layer) ?? new Set();
   for (const forbidden of forbiddenLayers) {
-    if (referencesCrateLayer(source, forbidden)) {
+    if (referencesCrateLayer(sourceWithoutComments, forbidden)) {
       violations.push({
         file,
         message: `${layer}/ cannot depend on crate::${forbidden}. Allowed direction is domain -> ports -> application -> adapters.`,
@@ -100,14 +119,14 @@ function validateSource(file, layer, source) {
 
 function referencesCrateLayer(source, layer) {
   return (
-    new RegExp(String.raw`\bcrate::${layer}\s*(?:::|\{)`).test(source) ||
+    new RegExp(String.raw`\bcrate::${layer}\s*(?:::|\{|\b)`).test(source) ||
     collectCrateUseBodies(source).some((body) => groupedUseReferencesLayer(body, layer))
   );
 }
 
 function collectCrateUseBodies(source) {
   const bodies = [];
-  const useCrate = /\buse\s+crate::([\s\S]*?);/g;
+  const useCrate = /\b(?:pub(?:\s*\([^)]*\))?\s+)?use\s+crate::([\s\S]*?);/g;
   for (const match of source.matchAll(useCrate)) {
     bodies.push(match[1]);
   }
@@ -117,7 +136,59 @@ function collectCrateUseBodies(source) {
 function groupedUseReferencesLayer(body, layer) {
   const trimmed = body.trim();
   if (!trimmed.startsWith("{")) return false;
-  return new RegExp(String.raw`(?:^|[,{]\s*)${layer}\s*(?:::|\{)`).test(trimmed);
+  return new RegExp(String.raw`(?:^|[,{]\s*)${layer}\s*(?:::|\{|\b)`).test(trimmed);
+}
+
+function stripRustComments(source) {
+  let output = "";
+  let i = 0;
+  let blockDepth = 0;
+  let inLineComment = false;
+
+  while (i < source.length) {
+    const current = source[i];
+    const next = source[i + 1];
+
+    if (inLineComment) {
+      if (current === "\n") {
+        inLineComment = false;
+        output += current;
+      }
+      i += 1;
+      continue;
+    }
+
+    if (blockDepth > 0) {
+      if (current === "/" && next === "*") {
+        blockDepth += 1;
+        i += 2;
+      } else if (current === "*" && next === "/") {
+        blockDepth -= 1;
+        i += 2;
+      } else {
+        if (current === "\n") output += current;
+        i += 1;
+      }
+      continue;
+    }
+
+    if (current === "/" && next === "/") {
+      inLineComment = true;
+      i += 2;
+      continue;
+    }
+
+    if (current === "/" && next === "*") {
+      blockDepth = 1;
+      i += 2;
+      continue;
+    }
+
+    output += current;
+    i += 1;
+  }
+
+  return output;
 }
 
 function* walk(directory) {
