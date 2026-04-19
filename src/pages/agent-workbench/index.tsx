@@ -5,6 +5,7 @@ import { FollowUpComposer } from "../../widgets/follow-up-composer";
 import { FollowUpQueue } from "../../widgets/follow-up-queue";
 import { RunPanel } from "../../widgets/run-panel";
 import { TabBar } from "../../widgets/workbench-tabs";
+import { WorkspaceBar } from "../../widgets/workspace-bar";
 
 export function AgentWorkbenchPage() {
   const activeTabId = useActiveTabId();
@@ -28,6 +29,7 @@ export function AgentWorkbenchPage() {
         ) : null}
       </header>
 
+      <WorkspaceBar tabId={activeTabId} disabled={state.sessionActive} />
       <TabBar />
 
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(360px,0.43fr)_minmax(520px,1fr)] items-stretch gap-4 max-lg:grid-cols-1">

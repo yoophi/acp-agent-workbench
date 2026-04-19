@@ -75,7 +75,7 @@ export function RunPanel({
         </label>
 
         <label className="grid gap-2">
-          <span className="text-sm font-medium">Workspace</span>
+          <span className="text-sm font-medium">Working directory</span>
           <Input value={cwd} onChange={(event) => onCwdChange(event.target.value)} />
         </label>
 

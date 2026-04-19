@@ -306,6 +306,8 @@ mod tests {
         AgentRunRequest {
             goal: "hello".into(),
             agent_id: "agent".into(),
+            workspace_id: None,
+            checkout_id: None,
             cwd: None,
             agent_command: None,
             stdio_buffer_limit_mb: None,

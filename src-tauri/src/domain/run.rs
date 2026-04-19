@@ -6,6 +6,8 @@ use uuid::Uuid;
 pub struct AgentRunRequest {
     pub goal: String,
     pub agent_id: String,
+    pub workspace_id: Option<String>,
+    pub checkout_id: Option<String>,
     pub cwd: Option<String>,
     pub agent_command: Option<String>,
     pub stdio_buffer_limit_mb: Option<usize>,
