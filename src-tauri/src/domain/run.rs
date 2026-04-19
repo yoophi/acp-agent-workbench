@@ -1,6 +1,15 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ResumePolicy {
+    #[default]
+    Fresh,
+    ResumeIfAvailable,
+    ResumeRequired,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRunRequest {
@@ -13,6 +22,8 @@ pub struct AgentRunRequest {
     pub stdio_buffer_limit_mb: Option<usize>,
     pub auto_allow: Option<bool>,
     pub run_id: Option<String>,
+    pub resume_session_id: Option<String>,
+    pub resume_policy: Option<ResumePolicy>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
