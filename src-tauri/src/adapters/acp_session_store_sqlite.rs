@@ -47,6 +47,7 @@ impl AcpSessionStore for SqliteAcpSessionStore {
                   AND workspace_id IS ?
                   AND checkout_id IS ?
                   AND workdir IS ?
+                  AND agent_command IS ?
                 ORDER BY updated_at DESC
                 LIMIT 1
                 "#,
@@ -55,6 +56,7 @@ impl AcpSessionStore for SqliteAcpSessionStore {
             .bind(&lookup.workspace_id)
             .bind(&lookup.checkout_id)
             .bind(&lookup.workdir)
+            .bind(&lookup.agent_command)
             .fetch_optional(&self.pool)
             .await?;
             row.map(session_from_row).transpose()
@@ -189,6 +191,7 @@ mod tests {
                 checkout_id: Some("co-1".into()),
                 workdir: Some("/tmp/work".into()),
                 agent_id: "agent".into(),
+                agent_command: Some("agent --stdio".into()),
             })
             .await
             .unwrap()
@@ -196,5 +199,28 @@ mod tests {
 
         assert_eq!(found.run_id, "run-1");
         assert_eq!(found.session_id, "session-2");
+    }
+
+    #[tokio::test]
+    async fn latest_session_requires_matching_agent_command() {
+        let store = temp_store().await;
+        insert_workspace_fixture(&store).await;
+        store
+            .record_session(record("run-1", "session-default"))
+            .await
+            .unwrap();
+
+        let found = store
+            .latest_session(AcpSessionLookup {
+                workspace_id: Some("ws-1".into()),
+                checkout_id: Some("co-1".into()),
+                workdir: Some("/tmp/work".into()),
+                agent_id: "agent".into(),
+                agent_command: Some("custom-agent --stdio".into()),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(found, None);
     }
 }
