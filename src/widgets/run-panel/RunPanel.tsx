@@ -1,4 +1,5 @@
-import { Octagon, Play, ShieldCheck } from "lucide-react";
+import { Octagon, Play, ShieldCheck, Trash2 } from "lucide-react";
+import type { AcpSessionRecord } from "../../entities/acp-session";
 import type { AgentDescriptor } from "../../entities/agent";
 import type { RalphLoopSettings, ResumePolicy } from "../../entities/message";
 import { cn } from "../../shared/lib";
@@ -19,6 +20,9 @@ type RunPanelProps = {
   onAutoAllowChange: (value: boolean) => void;
   resumePolicy: ResumePolicy;
   onResumePolicyChange: (value: ResumePolicy) => void;
+  latestAcpSession: AcpSessionRecord | null;
+  acpSessionLoading: boolean;
+  onClearLatestAcpSession: () => void;
   ralphLoop: RalphLoopSettings;
   onRalphLoopChange: (value: RalphLoopSettings) => void;
   idleTimeoutSec: number;
@@ -45,6 +49,9 @@ export function RunPanel({
   onAutoAllowChange,
   resumePolicy,
   onResumePolicyChange,
+  latestAcpSession,
+  acpSessionLoading,
+  onClearLatestAcpSession,
   ralphLoop,
   onRalphLoopChange,
   idleTimeoutSec,
@@ -142,6 +149,37 @@ export function RunPanel({
             <option value="resumeRequired">Require latest session</option>
           </NativeSelect>
         </label>
+
+        <div className="grid gap-2 rounded-md border border-border bg-muted/20 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Resume target
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              icon={<Trash2 size={14} />}
+              disabled={isRunning || !latestAcpSession}
+              onClick={onClearLatestAcpSession}
+            >
+              Clear
+            </Button>
+          </div>
+          {latestAcpSession ? (
+            <div className="grid gap-1 text-xs text-muted-foreground">
+              <code className="truncate font-mono text-foreground">
+                {latestAcpSession.sessionId.slice(0, 12)}
+              </code>
+              <span className="truncate">{latestAcpSession.task}</span>
+              <span>{formatSessionTime(latestAcpSession.updatedAt)}</span>
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              {acpSessionLoading ? "Checking sessions..." : "No stored session"}
+            </span>
+          )}
+        </div>
 
         <div className="grid gap-3 rounded-lg border border-border bg-muted/25 p-3">
           <label className="flex items-center gap-2 text-sm font-medium">
@@ -242,4 +280,12 @@ export function RunPanel({
       </CardContent>
     </Card>
   );
+}
+
+function formatSessionTime(value: string) {
+  const timestamp = Number(value);
+  if (Number.isFinite(timestamp) && timestamp > 0) {
+    return new Date(timestamp * 1000).toLocaleString();
+  }
+  return value;
 }

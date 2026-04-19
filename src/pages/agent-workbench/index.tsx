@@ -58,6 +58,9 @@ export function AgentWorkbenchPage() {
             onAutoAllowChange={state.setAutoAllow}
             resumePolicy={state.resumePolicy}
             onResumePolicyChange={state.setResumePolicy}
+            latestAcpSession={state.latestAcpSession}
+            acpSessionLoading={state.acpSessionLoading}
+            onClearLatestAcpSession={state.clearLatestAcpSession}
             ralphLoop={state.ralphLoop}
             onRalphLoopChange={state.setRalphLoop}
             idleTimeoutSec={state.idleTimeoutSec}
