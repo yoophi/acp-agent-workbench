@@ -8,6 +8,7 @@ use std::{path::Path, time::Duration};
 const WORKSPACE_SCHEMA_VERSION: i64 = 1;
 const SAVED_PROMPTS_SCHEMA_VERSION: i64 = 2;
 const ACP_SESSIONS_SCHEMA_VERSION: i64 = 3;
+const PULL_REQUEST_REVIEW_DRAFTS_SCHEMA_VERSION: i64 = 4;
 
 pub async fn open_database(app_data_dir: &Path) -> Result<SqlitePool> {
     tokio::fs::create_dir_all(app_data_dir).await?;
@@ -65,6 +66,9 @@ async fn migrate_database(pool: &SqlitePool) -> Result<()> {
     }
     if !migration_applied(pool, ACP_SESSIONS_SCHEMA_VERSION).await? {
         migrate_acp_sessions_schema(pool).await?;
+    }
+    if !migration_applied(pool, PULL_REQUEST_REVIEW_DRAFTS_SCHEMA_VERSION).await? {
+        migrate_pull_request_review_drafts_schema(pool).await?;
     }
     Ok(())
 }
@@ -200,6 +204,42 @@ async fn migrate_acp_sessions_schema(pool: &SqlitePool) -> Result<()> {
     .await?;
     sqlx::query("INSERT INTO schema_migrations (version) VALUES (?)")
         .bind(ACP_SESSIONS_SCHEMA_VERSION)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+async fn migrate_pull_request_review_drafts_schema(pool: &SqlitePool) -> Result<()> {
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS pull_request_review_drafts (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+            checkout_id TEXT REFERENCES workspace_checkouts(id) ON DELETE SET NULL,
+            pull_request_number INTEGER NOT NULL,
+            run_id TEXT,
+            summary TEXT NOT NULL,
+            decision TEXT NOT NULL,
+            comments_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        "#,
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_pull_request_review_drafts_lookup
+        ON pull_request_review_drafts(workspace_id, pull_request_number, updated_at DESC)
+        "#,
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query("INSERT INTO schema_migrations (version) VALUES (?)")
+        .bind(PULL_REQUEST_REVIEW_DRAFTS_SCHEMA_VERSION)
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;

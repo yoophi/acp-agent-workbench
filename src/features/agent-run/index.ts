@@ -19,9 +19,12 @@ export { type FollowUpQueueItem } from "./model";
 export {
   clearAcpSession,
   createGitHubPullRequest,
+  createPullRequestReviewDraft,
+  deletePullRequestReviewDraft,
   getGitHubPullRequestContext,
   getWorkspaceGitStatus,
   listAcpSessions,
+  listPullRequestReviewDrafts,
   listWorkspaceCheckouts,
   listWorkspaces,
   createWorkspaceCommit,
@@ -36,5 +39,6 @@ export {
   resolveWorkspaceWorkdir,
   submitGitHubPullRequestReview,
   summarizeWorkspaceDiff,
+  updatePullRequestReviewDraft,
   updateSavedPrompt,
 } from "./api";

@@ -10,10 +10,13 @@ import {
   cancelAgentRun,
   clearAcpSession,
   createGitHubPullRequest,
+  createPullRequestReviewDraft,
   createWorkspaceCommit,
+  deletePullRequestReviewDraft,
   getGitHubPullRequestContext,
   getWorkspaceGitStatus,
   listAcpSessions,
+  listPullRequestReviewDrafts,
   listenRunEvents,
   pushWorkspaceBranch,
   provisionWorkspaceTaskWorktree,
@@ -21,6 +24,7 @@ import {
   startAgentRun,
   submitGitHubPullRequestReview,
   summarizeWorkspaceDiff,
+  updatePullRequestReviewDraft,
 } from "./api";
 import { setupTauriListeners } from "../../test/tauri";
 
@@ -192,5 +196,35 @@ describe("agent-run api", () => {
       checkoutId: "checkout-main",
       taskSlug: "Issue #63",
     });
+  });
+
+  it("pull request review draft helpers pass command payloads", async () => {
+    mockedInvoke.mockResolvedValue(undefined);
+    const input = {
+      workspaceId: "ws-1",
+      checkoutId: "co-1",
+      pullRequestNumber: 42,
+      runId: "run-1",
+      summary: "Looks good overall",
+      decision: "comment" as const,
+      comments: [{ path: "src/lib.rs", line: 12, side: "RIGHT" as const, body: "Add a regression test." }],
+    };
+    const patch = { decision: "request_changes" as const, comments: [] };
+
+    await listPullRequestReviewDrafts("ws-1", 42);
+    await createPullRequestReviewDraft(input);
+    await updatePullRequestReviewDraft("draft-1", patch);
+    await deletePullRequestReviewDraft("draft-1");
+
+    expect(mockedInvoke).toHaveBeenNthCalledWith(1, "list_pull_request_review_drafts", {
+      workspaceId: "ws-1",
+      pullRequestNumber: 42,
+    });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(2, "create_pull_request_review_draft", { input });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(3, "update_pull_request_review_draft", {
+      id: "draft-1",
+      patch,
+    });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(4, "delete_pull_request_review_draft", { id: "draft-1" });
   });
 });

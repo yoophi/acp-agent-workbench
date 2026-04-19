@@ -5,6 +5,7 @@ pub mod git_repository;
 pub mod github_pull_request;
 pub mod goal_file;
 pub mod permission;
+pub mod pull_request_review_store;
 pub mod saved_prompt_store;
 pub mod session_handle;
 pub mod session_launcher;

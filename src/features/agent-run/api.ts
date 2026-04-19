@@ -3,13 +3,16 @@ import type { AcpSessionListQuery, AcpSessionRecord } from "../../entities/acp-s
 import type { AgentRun, AgentRunRequest, RunEventEnvelope } from "../../entities/message";
 import type { CreateSavedPromptInput, SavedPrompt, UpdateSavedPromptPatch } from "../../entities/saved-prompt";
 import type {
+  CreatePullRequestReviewDraftInput,
   GitHubPullRequestCreateRequest,
   GitHubPullRequestContext,
   GitHubPullRequestContextRequest,
   GitHubPullRequestReviewRequest,
   GitHubPullRequestReviewResult,
   GitHubPullRequestSummary,
+  PullRequestReviewDraft,
   RegisteredWorkspace,
+  UpdatePullRequestReviewDraftPatch,
   Workspace,
   WorkspaceCheckout,
   WorkspaceCommitRequest,
@@ -99,6 +102,25 @@ export function getGitHubPullRequestContext(request: GitHubPullRequestContextReq
 
 export function submitGitHubPullRequestReview(request: GitHubPullRequestReviewRequest) {
   return invokeCommand<GitHubPullRequestReviewResult>("submit_github_pull_request_review", { request });
+}
+
+export function listPullRequestReviewDrafts(workspaceId: string, pullRequestNumber?: number | null) {
+  return invokeCommand<PullRequestReviewDraft[]>("list_pull_request_review_drafts", {
+    workspaceId,
+    pullRequestNumber,
+  });
+}
+
+export function createPullRequestReviewDraft(input: CreatePullRequestReviewDraftInput) {
+  return invokeCommand<PullRequestReviewDraft>("create_pull_request_review_draft", { input });
+}
+
+export function updatePullRequestReviewDraft(id: string, patch: UpdatePullRequestReviewDraftPatch) {
+  return invokeCommand<PullRequestReviewDraft | null>("update_pull_request_review_draft", { id, patch });
+}
+
+export function deletePullRequestReviewDraft(id: string) {
+  return invokeCommand<void>("delete_pull_request_review_draft", { id });
 }
 
 export function provisionWorkspaceTaskWorktree(args: {

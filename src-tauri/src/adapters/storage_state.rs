@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use crate::adapters::{
     acp_session_store_sqlite::SqliteAcpSessionStore,
+    pull_request_review_store_sqlite::SqlitePullRequestReviewDraftStore,
     saved_prompt_store_sqlite::SqliteSavedPromptStore, sqlite::open_database,
     workspace_store_migration::migrate_json_workspace_store,
     workspace_store_sqlite::SqliteWorkspaceStore,
@@ -42,5 +43,9 @@ impl StorageState {
 
     pub fn acp_session_store(&self) -> SqliteAcpSessionStore {
         SqliteAcpSessionStore::new(self.pool())
+    }
+
+    pub fn pull_request_review_draft_store(&self) -> SqlitePullRequestReviewDraftStore {
+        SqlitePullRequestReviewDraftStore::new(self.pool())
     }
 }
