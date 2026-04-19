@@ -1,10 +1,10 @@
 use anyhow::{Result, anyhow, bail};
-use std::path::{Path, PathBuf};
-
-use crate::{
-    adapters::acp::util::{expand_tilde, normalize_path},
-    ports::workspace_store::WorkspaceStore,
+use std::{
+    env,
+    path::{Path, PathBuf},
 };
+
+use crate::ports::workspace_store::WorkspaceStore;
 
 #[derive(Clone)]
 pub struct ResolveWorkdirUseCase<S>
@@ -75,5 +75,36 @@ where
             );
         }
         Ok(Some(resolved))
+    }
+}
+
+fn expand_tilde(path: &str) -> PathBuf {
+    if path == "~" {
+        if let Some(home) = env::var_os("HOME") {
+            return PathBuf::from(home);
+        }
+    }
+    if let Some(rest) = path.strip_prefix("~/") {
+        if let Some(home) = env::var_os("HOME") {
+            return PathBuf::from(home).join(rest);
+        }
+    }
+    PathBuf::from(path)
+}
+
+fn normalize_path(path: &Path) -> Result<PathBuf> {
+    if path.exists() {
+        Ok(path.canonicalize()?)
+    } else if let Some(parent) = path.parent() {
+        let parent = if parent.as_os_str().is_empty() {
+            env::current_dir()?
+        } else if parent.exists() {
+            parent.canonicalize()?
+        } else {
+            normalize_path(parent)?
+        };
+        Ok(parent.join(path.file_name().unwrap_or_default()))
+    } else {
+        Ok(env::current_dir()?.join(path))
     }
 }

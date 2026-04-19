@@ -49,6 +49,9 @@ jobs:
       - name: Check frontend FSD boundaries
         run: npm run check:fsd
 
+      - name: Check backend architecture boundaries
+        run: npm run check:backend-boundaries
+
       - name: Build frontend
         run: npm run build
 
