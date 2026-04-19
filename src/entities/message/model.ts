@@ -2,6 +2,8 @@ export type AgentRunRequest = {
   runId?: string;
   goal: string;
   agentId: string;
+  workspaceId?: string;
+  checkoutId?: string;
   cwd?: string;
   agentCommand?: string;
   stdioBufferLimitMb?: number;

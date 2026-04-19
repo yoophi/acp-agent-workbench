@@ -52,6 +52,27 @@ export function useAgentRun(tabId: string) {
       patch({ error: "Goal is empty." });
       return;
     }
+    const sameWorkdirRuns = useWorkbenchStore
+      .getState()
+      .tabs.filter(
+        (entry) =>
+          entry.id !== current.id &&
+          entry.sessionActive &&
+          entry.workspaceId === current.workspaceId &&
+          entry.checkoutId === current.checkoutId &&
+          entry.cwd === current.cwd,
+      ).length;
+    if (
+      sameWorkdirRuns > 0 &&
+      current.workspaceId &&
+      !window.confirm(
+        `There ${sameWorkdirRuns === 1 ? "is" : "are"} ${sameWorkdirRuns} active run${
+          sameWorkdirRuns === 1 ? "" : "s"
+        } in this working directory. Start another run anyway?`,
+      )
+    ) {
+      return;
+    }
     const runId = crypto.randomUUID();
     useWorkbenchStore.getState().beginRun(tabId, runId);
 
@@ -59,6 +80,8 @@ export function useAgentRun(tabId: string) {
       runId,
       goal: trimmedGoal,
       agentId: current.selectedAgentId,
+      workspaceId: current.workspaceId ?? undefined,
+      checkoutId: current.checkoutId ?? undefined,
       cwd: current.cwd.trim() || undefined,
       agentCommand: current.customCommand.trim() || undefined,
       stdioBufferLimitMb: Math.min(512, Math.max(1, current.stdioBufferLimitMb || 50)),
@@ -134,6 +157,8 @@ export function useAgentRun(tabId: string) {
     agents,
     agentsLoading: agentsQuery.isLoading,
     selectedAgent,
+    workspaceId: tab?.workspaceId ?? null,
+    checkoutId: tab?.checkoutId ?? null,
     selectedAgentId: tab?.selectedAgentId ?? "",
     setSelectedAgentId,
     goal: tab?.goal ?? "",

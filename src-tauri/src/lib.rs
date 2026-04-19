@@ -6,8 +6,9 @@ mod ports;
 use adapters::{
     session_registry::AppState,
     tauri::commands::{
-        cancel_agent_run, list_agents, load_goal_file, respond_agent_permission, send_prompt_to_run,
-        start_agent_run,
+        cancel_agent_run, list_agents, list_workspace_checkouts, list_workspaces, load_goal_file,
+        refresh_workspace_checkout, register_workspace_from_path, remove_workspace,
+        resolve_workspace_workdir, respond_agent_permission, send_prompt_to_run, start_agent_run,
     },
 };
 
@@ -21,7 +22,13 @@ pub fn run() {
             start_agent_run,
             send_prompt_to_run,
             cancel_agent_run,
-            respond_agent_permission
+            respond_agent_permission,
+            list_workspaces,
+            register_workspace_from_path,
+            remove_workspace,
+            list_workspace_checkouts,
+            refresh_workspace_checkout,
+            resolve_workspace_workdir
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

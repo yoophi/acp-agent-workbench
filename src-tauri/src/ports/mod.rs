@@ -5,3 +5,4 @@ pub mod permission;
 pub mod session_handle;
 pub mod session_launcher;
 pub mod session_registry;
+pub mod workspace_store;

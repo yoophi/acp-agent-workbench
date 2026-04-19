@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { toTimelineItem, type EventGroup, type RunEvent, type TimelineItem } from "../../entities/message";
+import type { Workspace, WorkspaceCheckout } from "../../entities/workspace";
 
 const defaultGoal = "todo rest api 를 nodejs 로 작성해주세요. 데이터는 json 파일로 저장해주세요";
 
@@ -13,6 +14,8 @@ export type FollowUpQueueItem = {
 export type TabState = {
   id: string;
   title: string;
+  workspaceId: string | null;
+  checkoutId: string | null;
   selectedAgentId: string;
   goal: string;
   cwd: string;
@@ -35,14 +38,23 @@ export type TabState = {
 };
 
 type WorkbenchState = {
+  workspaces: Workspace[];
+  checkoutsByWorkspaceId: Record<string, WorkspaceCheckout[]>;
+  workspaceError: string | null;
   tabs: TabState[];
   activeTabId: string;
+  setWorkspaces: (workspaces: Workspace[]) => void;
+  setWorkspaceCheckouts: (workspaceId: string, checkouts: WorkspaceCheckout[]) => void;
+  upsertWorkspaceRegistration: (workspace: Workspace, checkout: WorkspaceCheckout) => void;
+  setWorkspaceError: (error: string | null) => void;
   addTab: (preset?: Partial<TabState>) => string;
   closeTab: (tabId: string) => string | null;
   forceCloseTab: (tabId: string) => string | null;
   activateTab: (tabId: string) => void;
   renameTab: (tabId: string, title: string) => void;
   patchTab: (tabId: string, patch: Partial<TabState>) => void;
+  setTabWorkspace: (tabId: string, workspaceId: string | null, checkoutId?: string | null) => void;
+  setTabWorkdir: (tabId: string, workdir: string) => void;
   enqueueFollowUp: (tabId: string, text: string) => void;
   removeFollowUp: (tabId: string, id: string) => void;
   dequeueFollowUp: (tabId: string) => FollowUpQueueItem | undefined;
@@ -65,6 +77,8 @@ export function createTabState(preset: Partial<TabState> = {}, index = 0): TabSt
   return {
     id: preset.id ?? createId("tab"),
     title: preset.title ?? defaultTabTitle(index),
+    workspaceId: preset.workspaceId ?? null,
+    checkoutId: preset.checkoutId ?? null,
     selectedAgentId: preset.selectedAgentId ?? "claude-code",
     goal: preset.goal ?? defaultGoal,
     cwd: preset.cwd ?? "~/tmp/acp-tauri-agent-workspace",
@@ -115,12 +129,61 @@ function mergeStreamedText(items: TimelineItem[], item: TimelineItem): TimelineI
 const initialTab = createTabState({}, 0);
 
 export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
+  workspaces: [],
+  checkoutsByWorkspaceId: {},
+  workspaceError: null,
   tabs: [initialTab],
   activeTabId: initialTab.id,
 
+  setWorkspaces: (workspaces) =>
+    set((state) => {
+      const knownIds = new Set(workspaces.map((workspace) => workspace.id));
+      return {
+        workspaces,
+        checkoutsByWorkspaceId: Object.fromEntries(
+          Object.entries(state.checkoutsByWorkspaceId).filter(([workspaceId]) =>
+            knownIds.has(workspaceId),
+          ),
+        ),
+      };
+    }),
+
+  setWorkspaceCheckouts: (workspaceId, checkouts) =>
+    set((state) => ({
+      checkoutsByWorkspaceId: {
+        ...state.checkoutsByWorkspaceId,
+        [workspaceId]: checkouts,
+      },
+    })),
+
+  upsertWorkspaceRegistration: (workspace, checkout) =>
+    set((state) => {
+      const workspaces = upsertItem(state.workspaces, workspace, (entry) => entry.id);
+      const currentCheckouts = state.checkoutsByWorkspaceId[workspace.id] ?? [];
+      return {
+        workspaces,
+        checkoutsByWorkspaceId: {
+          ...state.checkoutsByWorkspaceId,
+          [workspace.id]: upsertItem(currentCheckouts, checkout, (entry) => entry.id),
+        },
+        workspaceError: null,
+      };
+    }),
+
+  setWorkspaceError: (workspaceError) => set({ workspaceError }),
+
   addTab: (preset) => {
     const state = get();
-    const tab = createTabState(preset, state.tabs.length);
+    const activeTab = state.tabs.find((entry) => entry.id === state.activeTabId);
+    const tab = createTabState(
+      {
+        workspaceId: activeTab?.workspaceId ?? null,
+        checkoutId: activeTab?.checkoutId ?? null,
+        cwd: activeTab?.cwd,
+        ...preset,
+      },
+      state.tabs.length,
+    );
     set({ tabs: [...state.tabs, tab], activeTabId: tab.id });
     return tab.id;
   },
@@ -192,6 +255,33 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
   patchTab: (tabId, patch) =>
     set((state) => ({
       tabs: replaceTab(state.tabs, tabId, (tab) => ({ ...tab, ...patch })),
+    })),
+
+  setTabWorkspace: (tabId, workspaceId, checkoutId) =>
+    set((state) => ({
+      tabs: replaceTab(state.tabs, tabId, (tab) => {
+        const nextWorkspaceId = workspaceId;
+        const checkouts = nextWorkspaceId
+          ? (state.checkoutsByWorkspaceId[nextWorkspaceId] ?? [])
+          : [];
+        const selectedCheckout =
+          checkoutId ??
+          checkouts.find((entry) => entry.isDefault)?.id ??
+          checkouts[0]?.id ??
+          null;
+        const checkout = checkouts.find((entry) => entry.id === selectedCheckout);
+        return {
+          ...tab,
+          workspaceId: nextWorkspaceId,
+          checkoutId: selectedCheckout,
+          cwd: checkout?.path ?? tab.cwd,
+        };
+      }),
+    })),
+
+  setTabWorkdir: (tabId, workdir) =>
+    set((state) => ({
+      tabs: replaceTab(state.tabs, tabId, (tab) => ({ ...tab, cwd: workdir })),
     })),
 
   enqueueFollowUp: (tabId, text) =>
@@ -353,4 +443,11 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
 
 export function selectTab(state: WorkbenchState, tabId: string): TabState | undefined {
   return state.tabs.find((t) => t.id === tabId);
+}
+
+function upsertItem<T>(items: T[], item: T, getId: (item: T) => string): T[] {
+  const id = getId(item);
+  const index = items.findIndex((entry) => getId(entry) === id);
+  if (index === -1) return [...items, item];
+  return [...items.slice(0, index), item, ...items.slice(index + 1)];
 }
