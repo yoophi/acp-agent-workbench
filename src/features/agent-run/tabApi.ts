@@ -1,5 +1,5 @@
 import type { Workspace, WorkspaceCheckout } from "../../entities/workspace";
-import { useWorkbenchStore, type TabState } from "./model";
+import { selectTab, selectTabList, useWorkbenchStore, type TabState } from "./model";
 import { closeWorkbenchTab } from "./tabActions";
 
 export type WorkbenchTabListItem = Readonly<
@@ -22,11 +22,11 @@ export type WorkbenchTabListItem = Readonly<
 >;
 
 export function useActiveTabId() {
-  return useWorkbenchStore((state) => state.activeTabId);
+  return useWorkbenchStore((state) => state.activeWorkspaceViewId);
 }
 
 export function useTabList(): WorkbenchTabListItem[] {
-  return useWorkbenchStore((state) => state.tabs);
+  return useWorkbenchStore(selectTabList);
 }
 
 export function createWorkbenchTab() {
@@ -41,14 +41,14 @@ export { closeWorkbenchTab };
 
 export function useWorkspaceState(tabId: string) {
   return useWorkbenchStore((state) => {
-    const tab = state.tabs.find((entry) => entry.id === tabId);
+    const tab = selectTab(state, tabId);
     const selectedWorkspace = state.workspaces.find((entry) => entry.id === tab?.workspaceId);
     const checkouts = tab?.workspaceId
       ? (state.checkoutsByWorkspaceId[tab.workspaceId] ?? [])
       : [];
     const selectedCheckout = checkouts.find((entry) => entry.id === tab?.checkoutId);
     const activeSameWorkdirCount = tab
-      ? state.tabs.filter(
+      ? selectTabList(state).filter(
           (entry) =>
             entry.id !== tab.id &&
             entry.sessionActive &&

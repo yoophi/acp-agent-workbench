@@ -7,7 +7,13 @@ import {
 } from "./api";
 import type { AgentRunRequest, EventGroup, TimelineItem } from "../../entities/message";
 import type { SavedPromptRunMode } from "../../entities/saved-prompt";
-import { useWorkbenchStore, type TabState, type FollowUpQueueItem } from "./model";
+import {
+  selectTab,
+  selectTabList,
+  useWorkbenchStore,
+  type TabState,
+  type FollowUpQueueItem,
+} from "./model";
 
 const EMPTY_FOLLOW_UP_QUEUE: FollowUpQueueItem[] = [];
 const EMPTY_ITEMS: TimelineItem[] = [];
@@ -16,9 +22,7 @@ export function useAgentRun(tabId: string) {
   const agentsQuery = useQuery({ queryKey: ["agents"], queryFn: listAgents });
   const agents = agentsQuery.data ?? [];
 
-  const tab = useWorkbenchStore(
-    (state) => state.tabs.find((t) => t.id === tabId),
-  );
+  const tab = useWorkbenchStore((state) => selectTab(state, tabId));
 
   const patch = useCallback(
     (update: Partial<TabState>) => useWorkbenchStore.getState().patchTab(tabId, update),
@@ -46,23 +50,21 @@ export function useAgentRun(tabId: string) {
   );
 
   const run = useCallback(async () => {
-    const current = useWorkbenchStore.getState().tabs.find((t) => t.id === tabId);
+    const current = selectTab(useWorkbenchStore.getState(), tabId);
     if (!current) return;
     const trimmedGoal = current.goal.trim();
     if (!trimmedGoal) {
       patch({ error: "Goal is empty." });
       return;
     }
-    const sameWorkdirRuns = useWorkbenchStore
-      .getState()
-      .tabs.filter(
-        (entry) =>
-          entry.id !== current.id &&
-          entry.sessionActive &&
-          entry.workspaceId === current.workspaceId &&
-          entry.checkoutId === current.checkoutId &&
-          entry.cwd === current.cwd,
-      ).length;
+    const sameWorkdirRuns = selectTabList(useWorkbenchStore.getState()).filter(
+      (entry) =>
+        entry.id !== current.id &&
+        entry.sessionActive &&
+        entry.workspaceId === current.workspaceId &&
+        entry.checkoutId === current.checkoutId &&
+        entry.cwd === current.cwd,
+    ).length;
     if (
       sameWorkdirRuns > 0 &&
       current.workspaceId &&
@@ -92,14 +94,16 @@ export function useAgentRun(tabId: string) {
     try {
       await startAgentRun(request);
     } catch (err) {
-      useWorkbenchStore.getState().patchTab(tabId, { activeRunId: null });
-      useWorkbenchStore.getState().endRun(tabId);
-      patch({ error: String(err) });
+      const error = String(err);
+      const store = useWorkbenchStore.getState();
+      store.patchTab(tabId, { error });
+      store.endRun(tabId);
+      store.patchTab(tabId, { activeRunId: null });
     }
   }, [tabId, patch]);
 
   const cancel = useCallback(async () => {
-    const current = useWorkbenchStore.getState().tabs.find((t) => t.id === tabId);
+    const current = selectTab(useWorkbenchStore.getState(), tabId);
     if (!current?.activeRunId) return;
     try {
       await cancelAgentRun(current.activeRunId);
@@ -112,7 +116,7 @@ export function useAgentRun(tabId: string) {
 
   const send = useCallback(() => {
     const store = useWorkbenchStore.getState();
-    const current = store.tabs.find((t) => t.id === tabId);
+    const current = selectTab(store, tabId);
     if (!current?.sessionActive) return;
     const trimmed = current.followUpDraft.trim();
     if (!trimmed) return;
@@ -123,7 +127,7 @@ export function useAgentRun(tabId: string) {
   const applySavedPrompt = useCallback(
     (body: string, runMode: SavedPromptRunMode) => {
       const store = useWorkbenchStore.getState();
-      const current = store.tabs.find((t) => t.id === tabId);
+      const current = selectTab(store, tabId);
       const trimmed = body.trim();
       if (!current || !trimmed) return;
       if (!current.sessionActive) {
