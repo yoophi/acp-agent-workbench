@@ -22,7 +22,6 @@ use adapters::{
     },
 };
 use domain::workbench_window::WorkbenchWindowCloseRequest;
-use ports::session_registry::SessionRegistry;
 use tauri::{Emitter, Manager};
 
 const WORKBENCH_WINDOW_CLOSE_REQUESTED_EVENT: &str = "workbench-window-close-requested";
@@ -58,9 +57,7 @@ pub fn run() {
                 tauri::WindowEvent::Destroyed => {
                     let state = cleanup_state.clone();
                     tauri::async_runtime::spawn(async move {
-                        for run_id in state.runs_owned_by(&label).await {
-                            state.cancel_run(&run_id).await;
-                        }
+                        state.cancel_runs_owned_by(&label).await;
                     });
                 }
                 _ => {}

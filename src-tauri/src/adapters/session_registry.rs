@@ -68,12 +68,23 @@ impl AppState {
     }
 
     pub async fn runs_owned_by(&self, owner_window_label: &str) -> Vec<String> {
-        self.run_owners
+        let mut run_ids: Vec<_> = self
+            .run_owners
             .lock()
             .await
             .iter()
             .filter_map(|(run_id, owner)| (owner == owner_window_label).then(|| run_id.clone()))
-            .collect()
+            .collect();
+        run_ids.sort();
+        run_ids
+    }
+
+    pub async fn cancel_runs_owned_by(&self, owner_window_label: &str) -> Vec<String> {
+        let run_ids = self.runs_owned_by(owner_window_label).await;
+        for run_id in &run_ids {
+            self.cancel_run(run_id).await;
+        }
+        run_ids
     }
 
     pub async fn set_window_bootstrap(&self, window_label: String, bootstrap: serde_json::Value) {
@@ -301,5 +312,33 @@ mod tests {
 
         assert!(state.take_window_close_approval("workbench-a").await);
         assert!(!state.take_window_close_approval("workbench-a").await);
+    }
+
+    #[tokio::test]
+    async fn cancels_only_runs_owned_by_destroyed_window() {
+        let state = AppState::default();
+        state
+            .reserve_run("run-b".into(), Some("workbench-a".into()))
+            .await
+            .unwrap();
+        state
+            .reserve_run("run-a".into(), Some("workbench-a".into()))
+            .await
+            .unwrap();
+        state
+            .reserve_run("run-c".into(), Some("workbench-b".into()))
+            .await
+            .unwrap();
+
+        let cancelled = state.cancel_runs_owned_by("workbench-a").await;
+
+        assert_eq!(cancelled, vec!["run-a".to_string(), "run-b".to_string()]);
+        assert_eq!(state.owner_of("run-a").await, None);
+        assert_eq!(state.owner_of("run-b").await, None);
+        assert_eq!(
+            state.owner_of("run-c").await.as_deref(),
+            Some("workbench-b")
+        );
+        assert_eq!(state.active_run_count().await, 1);
     }
 }
