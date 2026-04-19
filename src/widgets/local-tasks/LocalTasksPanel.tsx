@@ -8,7 +8,7 @@ type LocalTasksPanelProps = {
   workspaceId: string | null;
   checkoutId: string | null;
   sessionActive?: boolean;
-  onApplyTaskGoal: (goal: string) => void;
+  onApplyTaskGoal: (goal: string, task: LocalTaskSummary) => void;
   onRunTaskGoal: (goal: string, task: LocalTaskSummary, allowBlockedTask: boolean) => void;
   onError: (error: string | null) => void;
 };
@@ -201,7 +201,7 @@ export function LocalTasksPanel({
 type TaskDetailsProps = {
   task: LocalTaskSummary;
   sessionActive: boolean;
-  onApplyTaskGoal: (goal: string) => void;
+  onApplyTaskGoal: (goal: string, task: LocalTaskSummary) => void;
   onRunTaskGoal: (goal: string, task: LocalTaskSummary, allowBlockedTask: boolean) => void;
 };
 
@@ -248,7 +248,7 @@ function TaskDetails({ task, sessionActive, onApplyTaskGoal, onRunTaskGoal }: Ta
             size="sm"
             icon={<SendToBack size={14} />}
             disabled={sessionActive}
-            onClick={() => onApplyTaskGoal(goal)}
+            onClick={() => onApplyTaskGoal(goal, task)}
           >
             Use as goal
           </Button>

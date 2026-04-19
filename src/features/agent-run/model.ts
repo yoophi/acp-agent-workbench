@@ -7,7 +7,7 @@ import {
   type RunEvent,
   type TimelineItem,
 } from "../../entities/message";
-import type { Workspace, WorkspaceCheckout } from "../../entities/workspace";
+import type { LocalTaskSummary, Workspace, WorkspaceCheckout } from "../../entities/workspace";
 
 const defaultGoal = "todo rest api 를 nodejs 로 작성해주세요. 데이터는 json 파일로 저장해주세요";
 const EMPTY_FOLLOW_UP_QUEUE: FollowUpQueueItem[] = [];
@@ -39,6 +39,13 @@ export type AgentRunDraft = {
   idleTimeoutSec: number;
 };
 
+export type LocalTaskRunSource = {
+  id: string;
+  title: string;
+  status: string | null;
+  blocked: boolean;
+};
+
 export type WorkspaceViewState = {
   id: string;
   title: string;
@@ -68,6 +75,7 @@ export type AgentRunState = {
   followUpQueue: FollowUpQueueItem[];
   items: TimelineItem[];
   runError: string | null;
+  sourceTask: LocalTaskRunSource | null;
   createdAt: number;
   completedAt: number | null;
 };
@@ -95,6 +103,7 @@ export type TabState = {
   items: TimelineItem[];
   filter: EventGroup | "all";
   error: string | null;
+  sourceTask: LocalTaskRunSource | null;
   unreadCount: number;
   permissionPending: boolean;
   closing: boolean;
@@ -164,6 +173,7 @@ export function createTabState(preset: Partial<TabState> = {}, index = 0): TabSt
     items: preset.items ?? [],
     filter: preset.filter ?? "all",
     error: preset.error ?? null,
+    sourceTask: preset.sourceTask ?? null,
     unreadCount: preset.unreadCount ?? 0,
     permissionPending: preset.permissionPending ?? false,
     closing: preset.closing ?? false,
@@ -222,6 +232,7 @@ function runStateFromTab(tab: TabState, runId: string): AgentRunState {
     followUpQueue: [],
     items: [],
     runError: null,
+    sourceTask: tab.sourceTask,
     createdAt: Date.now(),
     completedAt: null,
   };
@@ -237,7 +248,17 @@ function runStateFromDetachedTab(tab: TabState, runId: string): AgentRunState {
     followUpQueue: tab.followUpQueue,
     items: tab.items,
     runError: tab.error,
+    sourceTask: tab.sourceTask,
     completedAt: tab.sessionActive ? null : Date.now(),
+  };
+}
+
+export function localTaskRunSource(task: LocalTaskSummary): LocalTaskRunSource {
+  return {
+    id: task.id,
+    title: task.title,
+    status: task.status ?? null,
+    blocked: task.blocked,
   };
 }
 
@@ -270,6 +291,7 @@ function patchRunForTab(
   if (patch.followUpQueue !== undefined) next.followUpQueue = patch.followUpQueue;
   if (patch.items !== undefined) next.items = patch.items;
   if (patch.error !== undefined) next.runError = patch.error;
+  if (patch.sourceTask !== undefined) next.sourceTask = patch.sourceTask;
   return { ...state.runsById, [run.id]: next };
 }
 
@@ -1015,6 +1037,7 @@ function workspaceViewToTabState(
     items: run?.items ?? fallback?.items ?? EMPTY_TIMELINE_ITEMS,
     filter: view.filter,
     error: run?.runError ?? view.viewError,
+    sourceTask: run?.sourceTask ?? fallback?.sourceTask ?? null,
     unreadCount: view.unreadCount,
     permissionPending: run?.permissionPending ?? fallback?.permissionPending ?? false,
     closing: view.closing,

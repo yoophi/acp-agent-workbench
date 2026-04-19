@@ -2,6 +2,7 @@ import { Octagon, Play, ShieldCheck, Trash2 } from "lucide-react";
 import type { AcpSessionRecord } from "../../entities/acp-session";
 import type { AgentDescriptor } from "../../entities/agent";
 import type { RalphLoopSettings, ResumePolicy } from "../../entities/message";
+import type { LocalTaskRunSource } from "../../features/agent-run";
 import { cn } from "../../shared/lib";
 import { Button, Card, CardContent, CardHeader, CardTitle, CardTitleBlock, Input, NativeSelect } from "../../shared/ui";
 
@@ -30,6 +31,7 @@ type RunPanelProps = {
   idleRemainingSec: number | null;
   isRunning: boolean;
   activeRunId: string | null;
+  sourceTask: LocalTaskRunSource | null;
   onRun: () => void;
   onCancel: () => void;
 };
@@ -59,6 +61,7 @@ export function RunPanel({
   idleRemainingSec,
   isRunning,
   activeRunId,
+  sourceTask,
   onRun,
   onCancel,
 }: RunPanelProps) {
@@ -266,6 +269,21 @@ export function RunPanel({
             Stop
           </Button>
         </div>
+
+        {sourceTask ? (
+          <div className="grid gap-1 rounded-md border border-border bg-muted/25 px-3 py-2 text-sm">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Source task
+            </span>
+            <span className="truncate font-medium text-foreground">
+              {sourceTask.id} · {sourceTask.title}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {sourceTask.status ?? "no status"}
+              {sourceTask.blocked ? " · blocked override" : ""}
+            </span>
+          </div>
+        ) : null}
 
         {idleRemainingSec !== null ? (
           <p className="m-0 text-xs font-medium text-amber-700" role="status">
