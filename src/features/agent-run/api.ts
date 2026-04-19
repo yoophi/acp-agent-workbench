@@ -2,6 +2,7 @@ import type { AgentDescriptor } from "../../entities/agent";
 import type { AcpSessionListQuery, AcpSessionRecord } from "../../entities/acp-session";
 import type { AgentRun, AgentRunRequest, RunEventEnvelope } from "../../entities/message";
 import type { CreateSavedPromptInput, SavedPrompt, UpdateSavedPromptPatch } from "../../entities/saved-prompt";
+import type { WorkbenchWindowInfo } from "../../entities/workbench-window";
 import type {
   CreatePullRequestReviewDraftInput,
   GitHubPullRequestCreateRequest,
@@ -23,6 +24,7 @@ import type {
   WorkspacePushResult,
 } from "../../entities/workspace";
 import { invokeCommand, listenEvent } from "../../shared/api";
+import type { TabState } from "./model";
 
 export function listAgents() {
   return invokeCommand<AgentDescriptor[]>("list_agents");
@@ -38,6 +40,13 @@ export function cancelAgentRun(runId: string) {
 
 export function sendPromptToRun(runId: string, prompt: string) {
   return invokeCommand<void>("send_prompt_to_run", { runId, prompt });
+}
+
+export function detachAgentRunTab(tab: TabState) {
+  return invokeCommand<WorkbenchWindowInfo>("detach_tab", {
+    tab,
+    runId: tab.sessionActive ? tab.activeRunId : null,
+  });
 }
 
 export function listenRunEvents(callback: (event: RunEventEnvelope) => void) {

@@ -4,6 +4,7 @@ import {
   selectWorkspaceView,
   selectWorkspaceViewRuns,
   useWorkbenchStore,
+  type TabState,
 } from "./model";
 
 describe("workspace-scoped run state", () => {
@@ -124,5 +125,72 @@ describe("workspace-scoped run state", () => {
       runError: "failed to start",
     });
     expect(run.completedAt).toEqual(expect.any(Number));
+  });
+
+  it("hydrates a detached running tab with its timeline state", () => {
+    const sourceTab: TabState = {
+      id: "tab-detached",
+      title: "Detached",
+      workspaceId: "workspace-1",
+      checkoutId: "checkout-1",
+      selectedAgentId: "codex",
+      goal: "continue in another window",
+      cwd: "/repo",
+      customCommand: "",
+      stdioBufferLimitMb: 50,
+      autoAllow: true,
+      resumePolicy: "fresh" as const,
+      ralphLoop: {
+        enabled: false,
+        maxIterations: 3,
+        promptTemplate: "Continue",
+        stopOnError: true,
+        stopOnPermission: true,
+        delayMs: 0,
+      },
+      idleTimeoutSec: 60,
+      idleRemainingSec: 12,
+      activeRunId: "run-detached",
+      sessionActive: true,
+      awaitingResponse: false,
+      followUpDraft: "next prompt",
+      followUpQueue: [
+        { id: "follow-up-1", runId: "run-detached", text: "ship it", createdAt: 1 },
+      ],
+      items: [
+        {
+          id: "item-1",
+          runId: "run-detached",
+          group: "assistant/message" as const,
+          title: "assistant/message",
+          body: "progress",
+          createdAt: 1,
+          event: { type: "agentMessage" as const, text: "progress" },
+        },
+      ],
+      filter: "all" as const,
+      error: null,
+      unreadCount: 2,
+      permissionPending: false,
+      closing: true,
+    };
+
+    useWorkbenchStore.getState().hydrateDetachedTab(sourceTab);
+
+    const state = useWorkbenchStore.getState();
+    expect(state.tabs).toHaveLength(1);
+    expect(state.tabs[0]).toMatchObject({ id: "tab-detached", closing: false });
+    expect(state.workspaceViews[0]).toMatchObject({
+      id: "tab-detached",
+      activeRunId: "run-detached",
+      followUpDraft: "next prompt",
+    });
+    expect(state.runsById["run-detached"]).toMatchObject({
+      id: "run-detached",
+      workspaceViewId: "tab-detached",
+      idleRemainingSec: 12,
+      items: sourceTab.items,
+      followUpQueue: sourceTab.followUpQueue,
+    });
   });
 });

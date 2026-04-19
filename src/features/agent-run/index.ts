@@ -3,6 +3,8 @@ export {
   activateWorkbenchTab,
   closeWorkbenchTab,
   createWorkbenchTab,
+  detachWorkbenchTab,
+  hydrateDetachedWorkbenchTab,
   setTabWorkdir,
   setTabWorkspace,
   setWorkbenchWorkspaces,

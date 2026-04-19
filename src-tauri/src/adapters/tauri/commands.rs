@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use serde_json::Value;
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use uuid::Uuid;
 
@@ -60,8 +61,13 @@ pub fn load_goal_file(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn get_window_bootstrap(window: WebviewWindow) -> WorkbenchWindowBootstrap {
-    WorkbenchWindowBootstrap::new(window.label())
+pub async fn get_window_bootstrap(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+) -> Result<WorkbenchWindowBootstrap, String> {
+    let label = window.label().to_string();
+    let detached_tab = state.take_window_bootstrap(&label).await;
+    Ok(WorkbenchWindowBootstrap::new(label, detached_tab))
 }
 
 #[tauri::command]
@@ -92,6 +98,41 @@ pub fn open_workbench_window(app: AppHandle) -> Result<WorkbenchWindowInfo, Stri
             .map_err(|err| err.to_string())?;
     window.set_focus().map_err(|err| err.to_string())?;
 
+    Ok(WorkbenchWindowInfo::new(label, title))
+}
+
+#[tauri::command]
+pub async fn detach_tab(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    tab: Value,
+    run_id: Option<String>,
+) -> Result<WorkbenchWindowInfo, String> {
+    let label = next_workbench_window_label(&app);
+    let title = "ACP Agent Workbench".to_string();
+    state.set_window_bootstrap(label.clone(), tab).await;
+
+    let window =
+        match WebviewWindowBuilder::new(&app, label.clone(), WebviewUrl::App("index.html".into()))
+            .title(&title)
+            .build()
+        {
+            Ok(window) => window,
+            Err(err) => {
+                state.take_window_bootstrap(&label).await;
+                return Err(err.to_string());
+            }
+        };
+
+    if let Some(run_id) = run_id.as_deref().filter(|value| !value.is_empty()) {
+        if let Err(err) = state.transfer_run_owner(run_id, label.clone()).await {
+            state.take_window_bootstrap(&label).await;
+            let _ = window.close();
+            return Err(err.to_string());
+        }
+    }
+
+    window.set_focus().map_err(|err| err.to_string())?;
     Ok(WorkbenchWindowInfo::new(label, title))
 }
 

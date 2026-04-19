@@ -9,7 +9,7 @@ use adapters::{
     tauri::commands::{
         cancel_agent_run, cleanup_workspace_task_worktree, clear_acp_session,
         create_github_pull_request, create_pull_request_review_draft, create_saved_prompt,
-        create_workspace_commit, delete_pull_request_review_draft, delete_saved_prompt,
+        create_workspace_commit, delete_pull_request_review_draft, delete_saved_prompt, detach_tab,
         get_github_pull_request_context, get_window_bootstrap, get_workspace_git_status,
         list_acp_sessions, list_agents, list_pull_request_review_drafts, list_saved_prompts,
         list_workbench_windows, list_workspace_checkouts, list_workspaces, load_goal_file,
@@ -53,6 +53,7 @@ pub fn run() {
             get_window_bootstrap,
             list_workbench_windows,
             open_workbench_window,
+            detach_tab,
             start_agent_run,
             send_prompt_to_run,
             cancel_agent_run,

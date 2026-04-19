@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 pub const MAIN_WORKBENCH_WINDOW_LABEL: &str = "main";
 
@@ -15,6 +16,8 @@ pub struct WorkbenchWindowInfo {
 pub struct WorkbenchWindowBootstrap {
     pub label: String,
     pub is_main: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detached_tab: Option<Value>,
 }
 
 impl WorkbenchWindowInfo {
@@ -29,11 +32,12 @@ impl WorkbenchWindowInfo {
 }
 
 impl WorkbenchWindowBootstrap {
-    pub fn new(label: impl Into<String>) -> Self {
+    pub fn new(label: impl Into<String>, detached_tab: Option<Value>) -> Self {
         let label = label.into();
         Self {
             is_main: label == MAIN_WORKBENCH_WINDOW_LABEL,
             label,
+            detached_tab,
         }
     }
 }
