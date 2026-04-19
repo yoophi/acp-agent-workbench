@@ -1,1 +1,9 @@
-export type { GitOrigin, RegisteredWorkspace, Workspace, WorkspaceCheckout } from "./model";
+export type {
+  GitOrigin,
+  RegisteredWorkspace,
+  Workspace,
+  WorkspaceCheckout,
+  WorkspaceDiffSummary,
+  WorkspaceGitFileStatus,
+  WorkspaceGitStatus,
+} from "./model";

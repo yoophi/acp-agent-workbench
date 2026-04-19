@@ -6,14 +6,14 @@ use crate::{
     adapters::{
         acp::runner::AcpAgentRunner, acp_session_store_sqlite::SqliteAcpSessionStore,
         agent_catalog::ConfigurableAgentCatalog, fs::LocalGoalFileReader,
-        session_registry::AppState, storage_state::StorageState,
+        git::GitWorkspaceInspector, session_registry::AppState, storage_state::StorageState,
         tauri::event_sink::TauriRunEventSink,
     },
     application::{
         cancel_agent_run::CancelAgentRunUseCase, list_agents::ListAgentsUseCase,
         load_goal_file::LoadGoalFileUseCase, resolve_workdir::ResolveWorkdirUseCase,
         respond_permission::RespondPermissionUseCase, send_prompt::SendPromptUseCase,
-        start_agent_run::StartAgentRunUseCase,
+        start_agent_run::StartAgentRunUseCase, workspace_git::WorkspaceGitUseCase,
     },
     domain::{
         acp_session::AcpSessionLookup,
@@ -23,6 +23,7 @@ use crate::{
             CreateSavedPromptInput, SavedPrompt, SavedPromptId, UpdateSavedPromptPatch,
         },
         workspace::{RegisteredWorkspace, Workspace, WorkspaceCheckout},
+        workspace_git::{WorkspaceDiffSummary, WorkspaceGitStatus},
     },
     ports::{
         acp_session_store::AcpSessionStore, saved_prompt_store::SavedPromptStore,
@@ -235,6 +236,30 @@ pub async fn resolve_workspace_workdir(
         )
         .await
         .map(|path| path.map(|value| value.to_string_lossy().to_string()))
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn get_workspace_git_status(
+    storage: State<'_, StorageState>,
+    workspace_id: String,
+    checkout_id: Option<String>,
+) -> Result<WorkspaceGitStatus, String> {
+    WorkspaceGitUseCase::new(storage.workspace_store(), GitWorkspaceInspector)
+        .status(&workspace_id, checkout_id.as_deref())
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn summarize_workspace_diff(
+    storage: State<'_, StorageState>,
+    workspace_id: String,
+    checkout_id: Option<String>,
+) -> Result<WorkspaceDiffSummary, String> {
+    WorkspaceGitUseCase::new(storage.workspace_store(), GitWorkspaceInspector)
+        .diff_summary(&workspace_id, checkout_id.as_deref())
+        .await
         .map_err(|err| err.to_string())
 }
 

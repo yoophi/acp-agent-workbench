@@ -17,6 +17,7 @@ export {
 export { useAgentRun } from "./useAgentRun";
 export { type FollowUpQueueItem } from "./model";
 export {
+  getWorkspaceGitStatus,
   listWorkspaceCheckouts,
   listWorkspaces,
   createSavedPrompt,
@@ -26,5 +27,6 @@ export {
   refreshWorkspaceCheckout,
   registerWorkspaceFromPath,
   resolveWorkspaceWorkdir,
+  summarizeWorkspaceDiff,
   updateSavedPrompt,
 } from "./api";

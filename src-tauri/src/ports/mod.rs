@@ -7,4 +7,5 @@ pub mod saved_prompt_store;
 pub mod session_handle;
 pub mod session_launcher;
 pub mod session_registry;
+pub mod workspace_git;
 pub mod workspace_store;

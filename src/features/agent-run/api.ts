@@ -1,7 +1,13 @@
 import type { AgentDescriptor } from "../../entities/agent";
 import type { AgentRun, AgentRunRequest, RunEventEnvelope } from "../../entities/message";
 import type { CreateSavedPromptInput, SavedPrompt, UpdateSavedPromptPatch } from "../../entities/saved-prompt";
-import type { RegisteredWorkspace, Workspace, WorkspaceCheckout } from "../../entities/workspace";
+import type {
+  RegisteredWorkspace,
+  Workspace,
+  WorkspaceCheckout,
+  WorkspaceDiffSummary,
+  WorkspaceGitStatus,
+} from "../../entities/workspace";
 import { invokeCommand, listenEvent } from "../../shared/api";
 
 export function listAgents() {
@@ -46,6 +52,14 @@ export function resolveWorkspaceWorkdir(args: {
   cwd?: string | null;
 }) {
   return invokeCommand<string | null>("resolve_workspace_workdir", args);
+}
+
+export function getWorkspaceGitStatus(args: { workspaceId: string; checkoutId?: string | null }) {
+  return invokeCommand<WorkspaceGitStatus>("get_workspace_git_status", args);
+}
+
+export function summarizeWorkspaceDiff(args: { workspaceId: string; checkoutId?: string | null }) {
+  return invokeCommand<WorkspaceDiffSummary>("summarize_workspace_diff", args);
 }
 
 export function listSavedPrompts(workspaceId?: string | null) {

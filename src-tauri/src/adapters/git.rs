@@ -6,7 +6,11 @@ use std::{
 
 use crate::{
     adapters::acp::util::{expand_tilde, normalize_path},
-    domain::workspace::GitOrigin,
+    domain::{
+        workspace::{GitOrigin, WorkspaceCheckout},
+        workspace_git::{WorkspaceDiffSummary, WorkspaceGitFileStatus, WorkspaceGitStatus},
+    },
+    ports::workspace_git::WorkspaceGitInspector,
 };
 
 #[derive(Clone, Debug)]
@@ -38,6 +42,52 @@ impl GitRepository {
             origin,
             branch,
             head_sha,
+        })
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct GitWorkspaceInspector;
+
+impl WorkspaceGitInspector for GitWorkspaceInspector {
+    async fn status(
+        &self,
+        workspace_id: String,
+        checkout: WorkspaceCheckout,
+    ) -> Result<WorkspaceGitStatus> {
+        let repo = GitRepository::from_path(&checkout.path.to_string_lossy())?;
+        let files = status_files(&repo.root)?;
+        Ok(WorkspaceGitStatus {
+            workspace_id,
+            checkout_id: checkout.id,
+            path: repo.root.to_string_lossy().to_string(),
+            branch: repo.branch,
+            head_sha: repo.head_sha,
+            is_clean: files.is_empty(),
+            files,
+        })
+    }
+
+    async fn diff_summary(
+        &self,
+        workspace_id: String,
+        checkout: WorkspaceCheckout,
+    ) -> Result<WorkspaceDiffSummary> {
+        let repo = GitRepository::from_path(&checkout.path.to_string_lossy())?;
+        let files = status_files(&repo.root)?;
+        Ok(WorkspaceDiffSummary {
+            workspace_id,
+            checkout_id: checkout.id,
+            path: repo.root.to_string_lossy().to_string(),
+            branch: repo.branch,
+            head_sha: repo.head_sha,
+            staged_stat: run_git_optional(&repo.root, ["diff", "--cached", "--stat"])?,
+            unstaged_stat: run_git_optional(&repo.root, ["diff", "--stat"])?,
+            untracked_files: files
+                .into_iter()
+                .filter(|file| file.index_status == "?" && file.worktree_status == "?")
+                .map(|file| file.path)
+                .collect(),
         })
     }
 }
@@ -90,9 +140,44 @@ fn run_git<const N: usize>(cwd: &Path, args: [&str; N]) -> Result<String> {
     Ok(String::from_utf8(output.stdout)?)
 }
 
+fn run_git_optional<const N: usize>(cwd: &Path, args: [&str; N]) -> Result<String> {
+    Ok(run_git(cwd, args)
+        .map(|value| value.trim().to_string())
+        .unwrap_or_default())
+}
+
+fn status_files(root: &Path) -> Result<Vec<WorkspaceGitFileStatus>> {
+    let raw = run_git(root, ["status", "--porcelain=v1"])?;
+    Ok(raw
+        .lines()
+        .filter_map(parse_status_line)
+        .collect::<Vec<_>>())
+}
+
+fn parse_status_line(line: &str) -> Option<WorkspaceGitFileStatus> {
+    if line.len() < 4 {
+        return None;
+    }
+    let mut chars = line.chars();
+    let index_status = chars.next()?.to_string();
+    let worktree_status = chars.next()?.to_string();
+    let path = line.get(3..)?.trim();
+    let path = path
+        .rsplit_once(" -> ")
+        .map(|(_, renamed)| renamed)
+        .unwrap_or(path)
+        .trim_matches('"')
+        .to_string();
+    Some(WorkspaceGitFileStatus {
+        path,
+        index_status,
+        worktree_status,
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::parse_github_origin;
+    use super::{parse_github_origin, parse_status_line};
 
     #[test]
     fn parses_github_ssh_origin() {
@@ -110,5 +195,21 @@ mod tests {
     fn rejects_non_github_origin() {
         let err = parse_github_origin("https://gitlab.com/org/repo.git").unwrap_err();
         assert!(err.to_string().contains("only GitHub"));
+    }
+
+    #[test]
+    fn parses_porcelain_status_line() {
+        let file = parse_status_line(" M src/main.rs").unwrap();
+        assert_eq!(file.index_status, " ");
+        assert_eq!(file.worktree_status, "M");
+        assert_eq!(file.path, "src/main.rs");
+    }
+
+    #[test]
+    fn parses_porcelain_rename_line() {
+        let file = parse_status_line("R  old.rs -> new.rs").unwrap();
+        assert_eq!(file.index_status, "R");
+        assert_eq!(file.worktree_status, " ");
+        assert_eq!(file.path, "new.rs");
     }
 }
