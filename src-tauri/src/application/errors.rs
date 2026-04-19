@@ -1,15 +1,18 @@
 use std::fmt;
 
+use crate::ports::session_registry::ReserveRunError;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum StartAgentRunError {
-    ReserveRun(String),
+    ReserveRun(ReserveRunError),
     AttachRunHandle(String),
 }
 
 impl fmt::Display for StartAgentRunError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ReserveRun(message) | Self::AttachRunHandle(message) => f.write_str(message),
+            Self::ReserveRun(error) => error.fmt(f),
+            Self::AttachRunHandle(message) => f.write_str(message),
         }
     }
 }

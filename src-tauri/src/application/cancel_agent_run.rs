@@ -45,7 +45,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ports::session_registry::SessionRegistry;
+    use crate::ports::session_registry::{ReserveRunError, SessionRegistry};
     use anyhow::Result;
     use std::sync::{Arc, Mutex as StdMutex};
     use tokio::sync::Mutex;
@@ -62,7 +62,7 @@ mod tests {
     impl SessionRegistry for FakeRegistry {
         type Session = FakeSession;
 
-        async fn reserve_run(&self, _: String) -> Result<()> {
+        async fn reserve_run(&self, _: String) -> Result<(), ReserveRunError> {
             Ok(())
         }
         async fn attach_run_handle(&self, _: &str, handle: JoinHandle<()>) -> Result<()> {
