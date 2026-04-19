@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, ListChecks, RefreshCw, SendToBack } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ListChecks, Play, RefreshCw, SendToBack } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LocalTaskList, LocalTaskSummary } from "../../entities/workspace";
 import { listLocalTasks } from "../../features/agent-run";
@@ -9,6 +9,7 @@ type LocalTasksPanelProps = {
   checkoutId: string | null;
   sessionActive?: boolean;
   onApplyTaskGoal: (goal: string) => void;
+  onRunTaskGoal: (goal: string, task: LocalTaskSummary, allowBlockedTask: boolean) => void;
   onError: (error: string | null) => void;
 };
 
@@ -19,6 +20,7 @@ export function LocalTasksPanel({
   checkoutId,
   sessionActive = false,
   onApplyTaskGoal,
+  onRunTaskGoal,
   onError,
 }: LocalTasksPanelProps) {
   const [result, setResult] = useState<LocalTaskList | null>(null);
@@ -186,6 +188,7 @@ export function LocalTasksPanel({
                 task={selectedTask}
                 sessionActive={sessionActive}
                 onApplyTaskGoal={onApplyTaskGoal}
+                onRunTaskGoal={onRunTaskGoal}
               />
             ) : null}
           </div>
@@ -199,10 +202,24 @@ type TaskDetailsProps = {
   task: LocalTaskSummary;
   sessionActive: boolean;
   onApplyTaskGoal: (goal: string) => void;
+  onRunTaskGoal: (goal: string, task: LocalTaskSummary, allowBlockedTask: boolean) => void;
 };
 
-function TaskDetails({ task, sessionActive, onApplyTaskGoal }: TaskDetailsProps) {
+function TaskDetails({ task, sessionActive, onApplyTaskGoal, onRunTaskGoal }: TaskDetailsProps) {
   const goal = useMemo(() => composeTaskGoal(task), [task]);
+  const handleRun = useCallback(() => {
+    if (
+      task.blocked &&
+      !window.confirm(
+        `Task ${task.id} is blocked by ${task.dependencies.length || "unknown"} dependenc${
+          task.dependencies.length === 1 ? "y" : "ies"
+        }. Start it anyway?`,
+      )
+    ) {
+      return;
+    }
+    onRunTaskGoal(goal, task, task.blocked);
+  }, [goal, onRunTaskGoal, task]);
 
   return (
     <div className="grid gap-3 rounded-md border bg-background p-3">
@@ -224,16 +241,27 @@ function TaskDetails({ task, sessionActive, onApplyTaskGoal }: TaskDetailsProps)
           </div>
           <h2 className="m-0 text-base font-semibold leading-snug text-foreground">{task.title}</h2>
         </div>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          icon={<SendToBack size={14} />}
-          disabled={sessionActive}
-          onClick={() => onApplyTaskGoal(goal)}
-        >
-          Use as goal
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            icon={<SendToBack size={14} />}
+            disabled={sessionActive}
+            onClick={() => onApplyTaskGoal(goal)}
+          >
+            Use as goal
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            icon={<Play size={14} />}
+            disabled={sessionActive}
+            onClick={handleRun}
+          >
+            Run task
+          </Button>
+        </div>
       </div>
 
       {task.description ? (

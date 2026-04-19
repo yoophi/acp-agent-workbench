@@ -41,6 +41,9 @@ export function AgentWorkbenchPage() {
         checkoutId={state.checkoutId}
         sessionActive={state.sessionActive}
         onApplyTaskGoal={state.setGoal}
+        onRunTaskGoal={(goal, task, allowBlockedTask) =>
+          void state.run({ goal, sourceTask: task, allowBlockedTask })
+        }
         onError={state.setError}
       />
       <WorkspacePrPublishPanel workspaceId={state.workspaceId} checkoutId={state.checkoutId} />

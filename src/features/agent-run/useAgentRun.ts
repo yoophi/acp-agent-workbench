@@ -19,6 +19,7 @@ import type {
   TimelineItem,
 } from "../../entities/message";
 import type { SavedPromptRunMode } from "../../entities/saved-prompt";
+import type { LocalTaskSummary } from "../../entities/workspace";
 import {
   defaultRalphLoopSettings,
   selectTab,
@@ -30,6 +31,12 @@ import {
 
 const EMPTY_FOLLOW_UP_QUEUE: FollowUpQueueItem[] = [];
 const EMPTY_ITEMS: TimelineItem[] = [];
+
+export type RunAgentOptions = {
+  goal?: string;
+  sourceTask?: LocalTaskSummary;
+  allowBlockedTask?: boolean;
+};
 
 export function useAgentRun(tabId: string) {
   const agentsQuery = useQuery({ queryKey: ["agents"], queryFn: listAgents });
@@ -85,12 +92,18 @@ export function useAgentRun(tabId: string) {
     [filter, items],
   );
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (options: RunAgentOptions = {}) => {
     const current = selectTab(useWorkbenchStore.getState(), tabId);
     if (!current) return;
-    const trimmedGoal = current.goal.trim();
+    const trimmedGoal = (options.goal ?? current.goal).trim();
     if (!trimmedGoal) {
       patch({ error: "Goal is empty." });
+      return;
+    }
+    if (options.sourceTask?.blocked && !options.allowBlockedTask) {
+      patch({
+        error: `Task ${options.sourceTask.id} is blocked by dependencies and requires explicit override.`,
+      });
       return;
     }
     const sameWorkdirRuns = selectTabList(useWorkbenchStore.getState()).filter(
@@ -113,7 +126,14 @@ export function useAgentRun(tabId: string) {
       return;
     }
     const runId = crypto.randomUUID();
-    useWorkbenchStore.getState().beginRun(tabId, runId);
+    const store = useWorkbenchStore.getState();
+    store.beginRun(tabId, runId);
+    if (options.sourceTask) {
+      store.dispatchRunEvent(runId, {
+        type: "diagnostic",
+        message: sourceTaskRunMessage(options.sourceTask, Boolean(options.allowBlockedTask)),
+      });
+    }
 
     const originalCheckoutId = current.checkoutId ?? null;
     const originalCwd = current.cwd;
@@ -140,7 +160,9 @@ export function useAgentRun(tabId: string) {
         const worktree = await provisionWorkspaceTaskWorktree({
           workspaceId: current.workspaceId,
           checkoutId,
-          taskSlug: trimmedGoal,
+          taskSlug: options.sourceTask
+            ? `${options.sourceTask.id}-${options.sourceTask.title}`
+            : trimmedGoal,
         });
         checkoutId = worktree.id;
         provisionedCheckoutId = worktree.id;
@@ -316,4 +338,17 @@ export function useAgentRun(tabId: string) {
     filter,
     setFilter,
   };
+}
+
+function sourceTaskRunMessage(task: LocalTaskSummary, allowBlockedTask: boolean) {
+  const parts = [`Source task ${task.id}: ${task.title}`];
+  if (task.status) parts.push(`status ${task.status}`);
+  if (task.priority) parts.push(`priority ${task.priority}`);
+  if (task.blocked) {
+    parts.push(allowBlockedTask ? "blocked override approved" : "blocked");
+  }
+  if (task.dependencies.length > 0) {
+    parts.push(`dependencies ${task.dependencies.join(", ")}`);
+  }
+  return parts.join(" | ");
 }
