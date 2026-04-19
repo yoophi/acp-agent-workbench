@@ -1,12 +1,12 @@
 import { cancelAgentRun, listenRunEvents, sendPromptToRun } from "./api";
-import { useWorkbenchStore } from "./model";
+import { selectTab, selectTabList, useWorkbenchStore } from "./model";
 
 let installed = false;
 let disposers: Array<() => void> = [];
 
 async function drainTabQueue(tabId: string) {
   const store = useWorkbenchStore.getState();
-  const tab = store.tabs.find((t) => t.id === tabId);
+  const tab = selectTab(store, tabId);
   if (
     !tab ||
     !tab.sessionActive ||
@@ -29,7 +29,7 @@ async function drainTabQueue(tabId: string) {
   try {
     await sendPromptToRun(runId, next.text);
   } catch (err) {
-    const current = useWorkbenchStore.getState().tabs.find((t) => t.id === tabId);
+    const current = selectTab(useWorkbenchStore.getState(), tabId);
     if (current?.activeRunId === runId) {
       useWorkbenchStore.getState().patchTab(tabId, {
         awaitingResponse: false,
@@ -42,7 +42,7 @@ async function drainTabQueue(tabId: string) {
 function startIdleTicker() {
   const interval = setInterval(() => {
     const store = useWorkbenchStore.getState();
-    for (const tab of store.tabs) {
+    for (const tab of selectTabList(store)) {
       const shouldCount =
         tab.sessionActive &&
         !tab.awaitingResponse &&
@@ -75,7 +75,8 @@ function startIdleTicker() {
 function subscribeForDrain() {
   let previousSignature = "";
   return useWorkbenchStore.subscribe((state) => {
-    const signature = state.tabs
+    const tabs = selectTabList(state);
+    const signature = tabs
       .map(
         (t) =>
           `${t.id}:${t.sessionActive ? 1 : 0}:${t.awaitingResponse ? 1 : 0}:${t.followUpQueue.length}`,
@@ -83,7 +84,7 @@ function subscribeForDrain() {
       .join("|");
     if (signature === previousSignature) return;
     previousSignature = signature;
-    for (const tab of state.tabs) {
+    for (const tab of tabs) {
       if (
         tab.sessionActive &&
         !tab.awaitingResponse &&

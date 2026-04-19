@@ -213,6 +213,26 @@ function replaceWorkspaceView(
   return views.map((view) => (view.id === viewId ? updater(view) : view));
 }
 
+function patchRunForTab(
+  state: WorkbenchState,
+  tabId: string,
+  patch: Partial<TabState>,
+): Record<string, AgentRunState> {
+  const tab = state.tabs.find((entry) => entry.id === tabId);
+  if (!tab?.activeRunId || patch.activeRunId === null) return state.runsById;
+  const run = state.runsById[tab.activeRunId];
+  if (!run) return state.runsById;
+  const next: AgentRunState = { ...run };
+  if (patch.sessionActive !== undefined) next.sessionActive = patch.sessionActive;
+  if (patch.awaitingResponse !== undefined) next.awaitingResponse = patch.awaitingResponse;
+  if (patch.idleRemainingSec !== undefined) next.idleRemainingSec = patch.idleRemainingSec;
+  if (patch.permissionPending !== undefined) next.permissionPending = patch.permissionPending;
+  if (patch.followUpQueue !== undefined) next.followUpQueue = patch.followUpQueue;
+  if (patch.items !== undefined) next.items = patch.items;
+  if (patch.error !== undefined) next.runError = patch.error;
+  return { ...state.runsById, [run.id]: next };
+}
+
 function mergeStreamedText(items: TimelineItem[], item: TimelineItem): TimelineItem[] {
   const previous = items[items.length - 1];
   const canMerge =
@@ -431,6 +451,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         };
         return next;
       }),
+      runsById: patchRunForTab(state, tabId, patch),
     })),
 
   setTabWorkspace: (tabId, workspaceId, checkoutId) =>
@@ -793,10 +814,6 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
   },
 }));
 
-export function selectTab(state: WorkbenchState, tabId: string): TabState | undefined {
-  return state.tabs.find((t) => t.id === tabId);
-}
-
 export function selectWorkspaceView(
   state: WorkbenchState,
   workspaceViewId: string,
@@ -825,6 +842,57 @@ export function selectWorkspaceViewRuns(
   workspaceViewId: string,
 ): AgentRunState[] {
   return Object.values(state.runsById).filter((run) => run.workspaceViewId === workspaceViewId);
+}
+
+export function selectTab(state: WorkbenchState, tabId: string): TabState | undefined {
+  const view = selectWorkspaceView(state, tabId);
+  if (!view) return state.tabs.find((tab) => tab.id === tabId);
+  const activeRun = view.activeRunId ? selectRun(state, view.activeRunId) : undefined;
+  const fallback = state.tabs.find((tab) => tab.id === tabId);
+  return workspaceViewToTabState(view, activeRun, fallback);
+}
+
+export function selectTabList(state: WorkbenchState): TabState[] {
+  if (state.workspaceViews.length === 0) return state.tabs;
+  return state.workspaceViews.map((view) =>
+    workspaceViewToTabState(
+      view,
+      view.activeRunId ? selectRun(state, view.activeRunId) : undefined,
+      state.tabs.find((tab) => tab.id === view.id),
+    ),
+  );
+}
+
+function workspaceViewToTabState(
+  view: WorkspaceViewState,
+  run: AgentRunState | undefined,
+  fallback?: TabState,
+): TabState {
+  return {
+    id: view.id,
+    title: view.title,
+    workspaceId: view.workspaceId,
+    checkoutId: view.checkoutId,
+    selectedAgentId: view.draft.selectedAgentId,
+    goal: view.draft.goal,
+    cwd: view.cwd,
+    customCommand: view.draft.customCommand,
+    stdioBufferLimitMb: view.draft.stdioBufferLimitMb,
+    autoAllow: view.draft.autoAllow,
+    idleTimeoutSec: view.draft.idleTimeoutSec,
+    idleRemainingSec: run?.idleRemainingSec ?? fallback?.idleRemainingSec ?? null,
+    activeRunId: view.activeRunId,
+    sessionActive: run?.sessionActive ?? fallback?.sessionActive ?? false,
+    awaitingResponse: run?.awaitingResponse ?? fallback?.awaitingResponse ?? false,
+    followUpDraft: view.followUpDraft,
+    followUpQueue: run?.followUpQueue ?? fallback?.followUpQueue ?? [],
+    items: run?.items ?? fallback?.items ?? [],
+    filter: view.filter,
+    error: run?.runError ?? view.viewError,
+    unreadCount: view.unreadCount,
+    permissionPending: run?.permissionPending ?? fallback?.permissionPending ?? false,
+    closing: view.closing,
+  };
 }
 
 function upsertItem<T>(items: T[], item: T, getId: (item: T) => string): T[] {
