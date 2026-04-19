@@ -17,7 +17,8 @@ use crate::{
         list_local_tasks::ListLocalTasksUseCase, load_goal_file::LoadGoalFileUseCase,
         resolve_workdir::ResolveWorkdirUseCase, respond_permission::RespondPermissionUseCase,
         send_prompt::SendPromptUseCase, start_agent_run::StartAgentRunUseCase,
-        workspace_git::WorkspaceGitUseCase, workspace_worktree::WorkspaceTaskWorktreeUseCase,
+        update_local_task_status::UpdateLocalTaskStatusUseCase, workspace_git::WorkspaceGitUseCase,
+        workspace_worktree::WorkspaceTaskWorktreeUseCase,
     },
     domain::{
         acp_session::{
@@ -31,7 +32,7 @@ use crate::{
             WorkspaceCommitResult, WorkspaceDiffSummary, WorkspaceGitStatus, WorkspacePushRequest,
             WorkspacePushResult,
         },
-        local_task::LocalTaskList,
+        local_task::{LocalTaskList, LocalTaskStatus, LocalTaskSummary},
         pull_request_review::{
             CreatePullRequestReviewDraftInput, PullRequestReviewDraft, PullRequestReviewDraftId,
             UpdatePullRequestReviewDraftPatch,
@@ -433,6 +434,20 @@ pub async fn list_local_tasks(
 ) -> Result<LocalTaskList, String> {
     ListLocalTasksUseCase::new(storage.workspace_store(), BeadsCliTaskSource)
         .execute(&workspace_id, checkout_id.as_deref())
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn update_local_task_status(
+    storage: State<'_, StorageState>,
+    workspace_id: String,
+    checkout_id: Option<String>,
+    task_id: String,
+    status: LocalTaskStatus,
+) -> Result<LocalTaskSummary, String> {
+    UpdateLocalTaskStatusUseCase::new(storage.workspace_store(), BeadsCliTaskSource)
+        .execute(&workspace_id, checkout_id.as_deref(), &task_id, status)
         .await
         .map_err(|err| err.to_string())
 }

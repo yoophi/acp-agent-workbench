@@ -42,6 +42,8 @@ export type LocalTaskSummary = {
   acceptanceCriteria?: string | null;
 };
 
+export type LocalTaskStatus = "open" | "in_progress" | "closed";
+
 export type LocalTaskList = {
   workspaceId: string;
   checkoutId: string;

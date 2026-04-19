@@ -1,7 +1,7 @@
 import { AlertTriangle, CheckCircle2, ListChecks, Play, RefreshCw, SendToBack } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { LocalTaskList, LocalTaskSummary } from "../../entities/workspace";
-import { listLocalTasks } from "../../features/agent-run";
+import type { LocalTaskList, LocalTaskStatus, LocalTaskSummary } from "../../entities/workspace";
+import { listLocalTasks, updateLocalTaskStatus } from "../../features/agent-run";
 import { Badge, Button, NativeSelect, Textarea } from "../../shared/ui";
 
 type LocalTasksPanelProps = {
@@ -29,6 +29,7 @@ export function LocalTasksPanel({
   const [blockedFilter, setBlockedFilter] = useState("all");
   const [labelFilter, setLabelFilter] = useState("");
   const [loading, setLoading] = useState(false);
+  const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -60,6 +61,30 @@ export function LocalTasksPanel({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const updateStatus = useCallback(
+    async (task: LocalTaskSummary, status: LocalTaskStatus) => {
+      if (!workspaceId) return;
+      setUpdatingTaskId(task.id);
+      setError(null);
+      try {
+        await updateLocalTaskStatus({
+          workspaceId,
+          checkoutId,
+          taskId: task.id,
+          status,
+        });
+        await load();
+      } catch (err) {
+        const message = String(err);
+        setError(message);
+        onError(message);
+      } finally {
+        setUpdatingTaskId(null);
+      }
+    },
+    [checkoutId, load, onError, workspaceId],
+  );
 
   const tasks = result?.tasks ?? EMPTY_TASKS;
   const statusOptions = useMemo(
@@ -187,8 +212,10 @@ export function LocalTasksPanel({
               <TaskDetails
                 task={selectedTask}
                 sessionActive={sessionActive}
+                statusUpdating={updatingTaskId === selectedTask.id}
                 onApplyTaskGoal={onApplyTaskGoal}
                 onRunTaskGoal={onRunTaskGoal}
+                onUpdateStatus={updateStatus}
               />
             ) : null}
           </div>
@@ -201,12 +228,22 @@ export function LocalTasksPanel({
 type TaskDetailsProps = {
   task: LocalTaskSummary;
   sessionActive: boolean;
+  statusUpdating: boolean;
   onApplyTaskGoal: (goal: string, task: LocalTaskSummary) => void;
   onRunTaskGoal: (goal: string, task: LocalTaskSummary, allowBlockedTask: boolean) => void;
+  onUpdateStatus: (task: LocalTaskSummary, status: LocalTaskStatus) => void;
 };
 
-function TaskDetails({ task, sessionActive, onApplyTaskGoal, onRunTaskGoal }: TaskDetailsProps) {
+function TaskDetails({
+  task,
+  sessionActive,
+  statusUpdating,
+  onApplyTaskGoal,
+  onRunTaskGoal,
+  onUpdateStatus,
+}: TaskDetailsProps) {
   const goal = useMemo(() => composeTaskGoal(task), [task]);
+  const normalizedStatus = task.status?.toLowerCase();
   const handleRun = useCallback(() => {
     if (
       task.blocked &&
@@ -295,6 +332,43 @@ function TaskDetails({ task, sessionActive, onApplyTaskGoal, onRunTaskGoal }: Ta
           </p>
         </div>
       ) : null}
+
+      <div className="flex flex-wrap gap-2">
+        {normalizedStatus !== "in_progress" ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={statusUpdating}
+            onClick={() => onUpdateStatus(task, "in_progress")}
+          >
+            Mark started
+          </Button>
+        ) : null}
+        {normalizedStatus !== "closed" ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            icon={<CheckCircle2 size={14} />}
+            disabled={statusUpdating}
+            onClick={() => onUpdateStatus(task, "closed")}
+          >
+            Mark done
+          </Button>
+        ) : null}
+        {normalizedStatus === "closed" ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={statusUpdating}
+            onClick={() => onUpdateStatus(task, "open")}
+          >
+            Reopen
+          </Button>
+        ) : null}
+      </div>
 
       <Textarea value={goal} readOnly aria-label="Generated task goal preview" rows={5} />
     </div>

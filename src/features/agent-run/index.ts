@@ -43,6 +43,7 @@ export {
   resolveWorkspaceWorkdir,
   submitGitHubPullRequestReview,
   summarizeWorkspaceDiff,
+  updateLocalTaskStatus,
   updatePullRequestReviewDraft,
   updateSavedPrompt,
 } from "./api";

@@ -18,7 +18,7 @@ use adapters::{
         refresh_workspace_checkout, register_workspace_from_path, remove_workspace,
         resolve_workspace_workdir, respond_agent_permission, send_prompt_to_run, start_agent_run,
         submit_github_pull_request_review, summarize_workspace_diff, transfer_run_owner,
-        update_pull_request_review_draft, update_saved_prompt,
+        update_local_task_status, update_pull_request_review_draft, update_saved_prompt,
     },
 };
 use domain::workbench_window::{WorkbenchWindowCloseRequest, should_confirm_last_window_close};
@@ -90,6 +90,7 @@ pub fn run() {
             refresh_workspace_checkout,
             resolve_workspace_workdir,
             list_local_tasks,
+            update_local_task_status,
             get_workspace_git_status,
             summarize_workspace_diff,
             create_workspace_commit,

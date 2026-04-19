@@ -27,6 +27,7 @@ import {
   startAgentRun,
   submitGitHubPullRequestReview,
   summarizeWorkspaceDiff,
+  updateLocalTaskStatus,
   updatePullRequestReviewDraft,
 } from "./api";
 import { setupTauriListeners } from "../../test/tauri";
@@ -132,6 +133,12 @@ describe("agent-run api", () => {
     mockedInvoke.mockResolvedValue(undefined);
 
     await listLocalTasks("ws-1", "co-1");
+    await updateLocalTaskStatus({
+      workspaceId: "ws-1",
+      checkoutId: "co-1",
+      taskId: "bd-1",
+      status: "in_progress",
+    });
     await getWorkspaceGitStatus("ws-1", "co-1");
     await summarizeWorkspaceDiff("ws-1", "co-1");
 
@@ -139,11 +146,17 @@ describe("agent-run api", () => {
       workspaceId: "ws-1",
       checkoutId: "co-1",
     });
-    expect(mockedInvoke).toHaveBeenNthCalledWith(2, "get_workspace_git_status", {
+    expect(mockedInvoke).toHaveBeenNthCalledWith(2, "update_local_task_status", {
+      workspaceId: "ws-1",
+      checkoutId: "co-1",
+      taskId: "bd-1",
+      status: "in_progress",
+    });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(3, "get_workspace_git_status", {
       workspaceId: "ws-1",
       checkoutId: "co-1",
     });
-    expect(mockedInvoke).toHaveBeenNthCalledWith(3, "summarize_workspace_diff", {
+    expect(mockedInvoke).toHaveBeenNthCalledWith(4, "summarize_workspace_diff", {
       workspaceId: "ws-1",
       checkoutId: "co-1",
     });
