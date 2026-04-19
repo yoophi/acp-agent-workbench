@@ -3,6 +3,7 @@ use anyhow::{Result, anyhow, bail};
 use crate::{
     domain::{
         git::{
+            GitHubPullRequestContext, GitHubPullRequestContextRequest,
             GitHubPullRequestCreateRequest, GitHubPullRequestSummary, WorkspaceCommitRequest,
             WorkspaceCommitResult, WorkspaceDiffSummary, WorkspaceGitStatus, WorkspacePushRequest,
             WorkspacePushResult,
@@ -98,6 +99,20 @@ where
             .await?;
         let status = self.git.status(&checkout.path)?;
         github.create_pull_request(&checkout.path, &status, &request)
+    }
+
+    pub async fn pull_request_context<H>(
+        &self,
+        github: H,
+        request: GitHubPullRequestContextRequest,
+    ) -> Result<GitHubPullRequestContext>
+    where
+        H: GitHubPullRequestPort,
+    {
+        let checkout = self
+            .resolve_checkout(&request.workspace_id, request.checkout_id.as_deref())
+            .await?;
+        github.load_pull_request_context(&checkout.path, &request)
     }
 
     async fn resolve_checkout(
@@ -251,6 +266,105 @@ mod tests {
         ) -> Result<GitHubPullRequestSummary> {
             panic!("confirmation should be checked before GitHub PR creation")
         }
+
+        fn load_pull_request_context(
+            &self,
+            _workdir: &Path,
+            _request: &GitHubPullRequestContextRequest,
+        ) -> Result<GitHubPullRequestContext> {
+            panic!("confirmation should be checked before GitHub PR context loading")
+        }
+    }
+
+    #[derive(Clone)]
+    struct ContextWorkspaceStore;
+
+    impl WorkspaceStore for ContextWorkspaceStore {
+        async fn list_workspaces(&self) -> Result<Vec<Workspace>> {
+            Ok(vec![])
+        }
+
+        async fn get_workspace(&self, id: &str) -> Result<Option<Workspace>> {
+            Ok((id == "workspace-1").then(|| Workspace {
+                id: "workspace-1".into(),
+                name: "repo".into(),
+                origin: crate::domain::workspace::GitOrigin {
+                    raw_url: "git@github.com:owner/repo.git".into(),
+                    canonical_url: "github.com/owner/repo".into(),
+                    host: "github.com".into(),
+                    owner: "owner".into(),
+                    repo: "repo".into(),
+                },
+                default_checkout_id: Some("checkout-1".into()),
+                created_at: "1".into(),
+                updated_at: "1".into(),
+            }))
+        }
+
+        async fn list_checkouts(&self, _workspace_id: &str) -> Result<Vec<WorkspaceCheckout>> {
+            Ok(vec![])
+        }
+
+        async fn get_checkout(&self, id: &str) -> Result<Option<WorkspaceCheckout>> {
+            Ok((id == "checkout-1").then(|| WorkspaceCheckout {
+                id: "checkout-1".into(),
+                workspace_id: "workspace-1".into(),
+                path: "/repo/worktree".into(),
+                kind: crate::domain::workspace::CheckoutKind::Clone,
+                branch: Some("main".into()),
+                head_sha: Some("abc".into()),
+                is_default: true,
+            }))
+        }
+
+        async fn save_checkout(&self, _checkout: WorkspaceCheckout) -> Result<WorkspaceCheckout> {
+            panic!("PR context loading should not save checkouts")
+        }
+
+        async fn remove_workspace(&self, _workspace_id: &WorkspaceId) -> Result<()> {
+            Ok(())
+        }
+
+        async fn refresh_checkout(
+            &self,
+            _checkout_id: &CheckoutId,
+        ) -> Result<Option<WorkspaceCheckout>> {
+            Ok(None)
+        }
+    }
+
+    #[derive(Clone)]
+    struct ContextGitHubClient;
+
+    impl GitHubPullRequestPort for ContextGitHubClient {
+        fn create_pull_request(
+            &self,
+            _workdir: &Path,
+            _status: &WorkspaceGitStatus,
+            _request: &GitHubPullRequestCreateRequest,
+        ) -> Result<GitHubPullRequestSummary> {
+            panic!("PR context loading should not create pull requests")
+        }
+
+        fn load_pull_request_context(
+            &self,
+            workdir: &Path,
+            request: &GitHubPullRequestContextRequest,
+        ) -> Result<GitHubPullRequestContext> {
+            assert_eq!(workdir, Path::new("/repo/worktree"));
+            Ok(GitHubPullRequestContext {
+                number: request.number,
+                url: "https://github.com/owner/repo/pull/42".into(),
+                title: "Review me".into(),
+                body: Some("body".into()),
+                author: Some("octocat".into()),
+                base_ref: "main".into(),
+                head_ref: "feature".into(),
+                head_sha: "def".into(),
+                changed_files: vec!["src/lib.rs".into()],
+                diff: "diff --git a/src/lib.rs b/src/lib.rs".into(),
+            })
+        }
     }
 
     #[tokio::test]
@@ -318,5 +432,23 @@ mod tests {
                 .to_string()
                 .contains("explicit confirmation")
         );
+    }
+
+    #[tokio::test]
+    async fn loads_pull_request_context_from_resolved_checkout() {
+        let context = WorkspaceGitUseCase::new(ContextWorkspaceStore, FakeGitRepository)
+            .pull_request_context(
+                ContextGitHubClient,
+                GitHubPullRequestContextRequest {
+                    workspace_id: "workspace-1".into(),
+                    checkout_id: Some("checkout-1".into()),
+                    number: 42,
+                },
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(context.number, 42);
+        assert_eq!(context.changed_files, vec!["src/lib.rs"]);
     }
 }

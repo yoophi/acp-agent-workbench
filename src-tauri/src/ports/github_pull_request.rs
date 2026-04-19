@@ -2,7 +2,8 @@ use anyhow::Result;
 use std::path::Path;
 
 use crate::domain::git::{
-    GitHubPullRequestCreateRequest, GitHubPullRequestSummary, WorkspaceGitStatus,
+    GitHubPullRequestContext, GitHubPullRequestContextRequest, GitHubPullRequestCreateRequest,
+    GitHubPullRequestSummary, WorkspaceGitStatus,
 };
 
 pub trait GitHubPullRequestPort: Clone + Send + Sync + 'static {
@@ -12,4 +13,10 @@ pub trait GitHubPullRequestPort: Clone + Send + Sync + 'static {
         status: &WorkspaceGitStatus,
         request: &GitHubPullRequestCreateRequest,
     ) -> Result<GitHubPullRequestSummary>;
+
+    fn load_pull_request_context(
+        &self,
+        workdir: &Path,
+        request: &GitHubPullRequestContextRequest,
+    ) -> Result<GitHubPullRequestContext>;
 }

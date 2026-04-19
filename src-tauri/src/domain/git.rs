@@ -82,3 +82,26 @@ pub struct GitHubPullRequestSummary {
     pub base_ref: String,
     pub head_ref: String,
 }
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubPullRequestContextRequest {
+    pub workspace_id: String,
+    pub checkout_id: Option<String>,
+    pub number: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubPullRequestContext {
+    pub number: u64,
+    pub url: String,
+    pub title: String,
+    pub body: Option<String>,
+    pub author: Option<String>,
+    pub base_ref: String,
+    pub head_ref: String,
+    pub head_sha: String,
+    pub changed_files: Vec<String>,
+    pub diff: String,
+}

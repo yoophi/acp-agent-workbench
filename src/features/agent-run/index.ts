@@ -19,6 +19,7 @@ export { type FollowUpQueueItem } from "./model";
 export {
   clearAcpSession,
   createGitHubPullRequest,
+  getGitHubPullRequestContext,
   getWorkspaceGitStatus,
   listAcpSessions,
   listWorkspaceCheckouts,

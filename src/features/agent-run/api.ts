@@ -4,6 +4,8 @@ import type { AgentRun, AgentRunRequest, RunEventEnvelope } from "../../entities
 import type { CreateSavedPromptInput, SavedPrompt, UpdateSavedPromptPatch } from "../../entities/saved-prompt";
 import type {
   GitHubPullRequestCreateRequest,
+  GitHubPullRequestContext,
+  GitHubPullRequestContextRequest,
   GitHubPullRequestSummary,
   RegisteredWorkspace,
   Workspace,
@@ -87,6 +89,10 @@ export function pushWorkspaceBranch(request: WorkspacePushRequest) {
 
 export function createGitHubPullRequest(request: GitHubPullRequestCreateRequest) {
   return invokeCommand<GitHubPullRequestSummary>("create_github_pull_request", { request });
+}
+
+export function getGitHubPullRequestContext(request: GitHubPullRequestContextRequest) {
+  return invokeCommand<GitHubPullRequestContext>("get_github_pull_request_context", { request });
 }
 
 export function provisionWorkspaceTaskWorktree(args: {

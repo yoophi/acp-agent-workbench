@@ -1,5 +1,7 @@
 export type {
   GitHubPullRequestCreateRequest,
+  GitHubPullRequestContext,
+  GitHubPullRequestContextRequest,
   GitHubPullRequestSummary,
   GitOrigin,
   RegisteredWorkspace,

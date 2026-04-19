@@ -11,6 +11,7 @@ import {
   clearAcpSession,
   createGitHubPullRequest,
   createWorkspaceCommit,
+  getGitHubPullRequestContext,
   getWorkspaceGitStatus,
   listAcpSessions,
   listenRunEvents,
@@ -134,6 +135,11 @@ describe("agent-run api", () => {
     await createWorkspaceCommit(commitRequest);
     await pushWorkspaceBranch(pushRequest);
     await createGitHubPullRequest(pullRequestRequest);
+    await getGitHubPullRequestContext({
+      workspaceId: "ws-1",
+      checkoutId: "co-1",
+      number: 42,
+    });
 
     expect(mockedInvoke).toHaveBeenNthCalledWith(1, "create_workspace_commit", {
       request: commitRequest,
@@ -143,6 +149,9 @@ describe("agent-run api", () => {
     });
     expect(mockedInvoke).toHaveBeenNthCalledWith(3, "create_github_pull_request", {
       request: pullRequestRequest,
+    });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(4, "get_github_pull_request_context", {
+      request: { workspaceId: "ws-1", checkoutId: "co-1", number: 42 },
     });
   });
 
