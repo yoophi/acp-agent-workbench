@@ -108,6 +108,7 @@ fn next_workbench_window_label(app: &AppHandle) -> String {
 #[tauri::command]
 pub async fn start_agent_run(
     app: AppHandle,
+    window: WebviewWindow,
     state: State<'_, AppState>,
     storage: State<'_, StorageState>,
     mut request: AgentRunRequest,
@@ -139,7 +140,11 @@ pub async fn start_agent_run(
         .await
         .map_err(|err| err.to_string())?;
 
-    let sink = TauriRunEventSink::new(app);
+    if request.run_id.as_deref().is_none_or(str::is_empty) {
+        request.run_id = Some(Uuid::new_v4().to_string());
+    }
+    let owner_window_label = window.label().to_string();
+    let sink = TauriRunEventSink::new(app, state.inner().clone());
     let permissions = state.permissions();
     let registry = state.inner().clone();
     let runner = AcpAgentRunner::new(
@@ -149,7 +154,7 @@ pub async fn start_agent_run(
     );
 
     StartAgentRunUseCase::new(registry)
-        .execute(runner, sink, request)
+        .execute(runner, sink, request, Some(owner_window_label))
         .await
         .map_err(String::from)
 }
@@ -206,11 +211,12 @@ fn has_resume_session_id(request: &AgentRunRequest) -> bool {
 #[tauri::command]
 pub async fn send_prompt_to_run(
     app: AppHandle,
+    _window: WebviewWindow,
     state: State<'_, AppState>,
     run_id: String,
     prompt: String,
 ) -> Result<(), String> {
-    let sink = TauriRunEventSink::new(app);
+    let sink = TauriRunEventSink::new(app, state.inner().clone());
     let registry = state.inner().clone();
     SendPromptUseCase::new(registry)
         .execute(sink, run_id, prompt)
@@ -221,15 +227,32 @@ pub async fn send_prompt_to_run(
 #[tauri::command]
 pub async fn cancel_agent_run(
     app: AppHandle,
+    _window: WebviewWindow,
     state: State<'_, AppState>,
     run_id: String,
 ) -> Result<(), String> {
-    let sink = TauriRunEventSink::new(app);
+    let sink = TauriRunEventSink::new(app, state.inner().clone());
     let registry = state.inner().clone();
     CancelAgentRunUseCase::new(registry)
         .execute(sink, run_id)
         .await;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn transfer_run_owner(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    run_id: String,
+    owner_window_label: String,
+) -> Result<(), String> {
+    if app.get_webview_window(&owner_window_label).is_none() {
+        return Err(format!("workbench window not found: {owner_window_label}"));
+    }
+    state
+        .transfer_run_owner(&run_id, owner_window_label)
+        .await
+        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]

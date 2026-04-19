@@ -36,6 +36,7 @@ pub trait SessionRegistry: Clone + Send + Sync + 'static {
     fn reserve_run(
         &self,
         run_id: String,
+        owner_window_label: Option<String>,
     ) -> impl Future<Output = Result<(), ReserveRunError>> + Send;
 
     fn attach_run_handle(

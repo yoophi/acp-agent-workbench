@@ -121,7 +121,7 @@ mod tests {
     impl SessionRegistry for FakeRegistry {
         type Session = FakeSession;
 
-        async fn reserve_run(&self, _: String) -> Result<(), ReserveRunError> {
+        async fn reserve_run(&self, _: String, _: Option<String>) -> Result<(), ReserveRunError> {
             Ok(())
         }
         async fn attach_run_handle(&self, _: &str, handle: JoinHandle<()>) -> Result<()> {
