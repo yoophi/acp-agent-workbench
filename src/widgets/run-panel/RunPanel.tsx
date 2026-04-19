@@ -1,5 +1,6 @@
 import { Octagon, Play, ShieldCheck } from "lucide-react";
 import type { AgentDescriptor } from "../../entities/agent";
+import type { ResumePolicy } from "../../entities/message";
 import { cn } from "../../shared/lib";
 import { Button, Card, CardContent, CardHeader, CardTitle, CardTitleBlock, Input, NativeSelect } from "../../shared/ui";
 
@@ -16,6 +17,8 @@ type RunPanelProps = {
   onStdioBufferLimitChange: (value: number) => void;
   autoAllow: boolean;
   onAutoAllowChange: (value: boolean) => void;
+  resumePolicy: ResumePolicy;
+  onResumePolicyChange: (value: ResumePolicy) => void;
   idleTimeoutSec: number;
   onIdleTimeoutChange: (value: number) => void;
   idleRemainingSec: number | null;
@@ -38,6 +41,8 @@ export function RunPanel({
   onStdioBufferLimitChange,
   autoAllow,
   onAutoAllowChange,
+  resumePolicy,
+  onResumePolicyChange,
   idleTimeoutSec,
   onIdleTimeoutChange,
   idleRemainingSec,
@@ -119,6 +124,19 @@ export function RunPanel({
           />
           <ShieldCheck size={16} className="shrink-0 text-muted-foreground" />
           <span>Auto-select allow permission</span>
+        </label>
+
+        <label className="grid gap-2">
+          <span className="text-sm font-medium">ACP session</span>
+          <NativeSelect
+            value={resumePolicy}
+            onChange={(event) => onResumePolicyChange(event.target.value as ResumePolicy)}
+            disabled={isRunning}
+          >
+            <option value="fresh">Start new session</option>
+            <option value="resumeIfAvailable">Resume latest if available</option>
+            <option value="resumeRequired">Require latest session</option>
+          </NativeSelect>
         </label>
 
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">

@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import { toTimelineItem, type EventGroup, type RunEvent, type TimelineItem } from "../../entities/message";
+import {
+  toTimelineItem,
+  type EventGroup,
+  type ResumePolicy,
+  type RunEvent,
+  type TimelineItem,
+} from "../../entities/message";
 import type { Workspace, WorkspaceCheckout } from "../../entities/workspace";
 
 const defaultGoal = "todo rest api 를 nodejs 로 작성해주세요. 데이터는 json 파일로 저장해주세요";
@@ -17,6 +23,7 @@ export type AgentRunDraft = {
   customCommand: string;
   stdioBufferLimitMb: number;
   autoAllow: boolean;
+  resumePolicy: ResumePolicy;
   idleTimeoutSec: number;
 };
 
@@ -64,6 +71,7 @@ export type TabState = {
   customCommand: string;
   stdioBufferLimitMb: number;
   autoAllow: boolean;
+  resumePolicy: ResumePolicy;
   idleTimeoutSec: number;
   idleRemainingSec: number | null;
   activeRunId: string | null;
@@ -130,6 +138,7 @@ export function createTabState(preset: Partial<TabState> = {}, index = 0): TabSt
     customCommand: preset.customCommand ?? "",
     stdioBufferLimitMb: preset.stdioBufferLimitMb ?? 50,
     autoAllow: preset.autoAllow ?? true,
+    resumePolicy: preset.resumePolicy ?? "fresh",
     idleTimeoutSec: preset.idleTimeoutSec ?? 60,
     idleRemainingSec: preset.idleRemainingSec ?? null,
     activeRunId: preset.activeRunId ?? null,
@@ -153,6 +162,7 @@ function tabToDraft(tab: TabState): AgentRunDraft {
     customCommand: tab.customCommand,
     stdioBufferLimitMb: tab.stdioBufferLimitMb,
     autoAllow: tab.autoAllow,
+    resumePolicy: tab.resumePolicy,
     idleTimeoutSec: tab.idleTimeoutSec,
   };
 }
@@ -447,6 +457,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
           customCommand: patch.customCommand ?? next.draft.customCommand,
           stdioBufferLimitMb: patch.stdioBufferLimitMb ?? next.draft.stdioBufferLimitMb,
           autoAllow: patch.autoAllow ?? next.draft.autoAllow,
+          resumePolicy: patch.resumePolicy ?? next.draft.resumePolicy,
           idleTimeoutSec: patch.idleTimeoutSec ?? next.draft.idleTimeoutSec,
         };
         return next;
@@ -879,6 +890,7 @@ function workspaceViewToTabState(
     customCommand: view.draft.customCommand,
     stdioBufferLimitMb: view.draft.stdioBufferLimitMb,
     autoAllow: view.draft.autoAllow,
+    resumePolicy: view.draft.resumePolicy,
     idleTimeoutSec: view.draft.idleTimeoutSec,
     idleRemainingSec: run?.idleRemainingSec ?? fallback?.idleRemainingSec ?? null,
     activeRunId: view.activeRunId,

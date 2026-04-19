@@ -1,3 +1,5 @@
+export type ResumePolicy = "fresh" | "resumeIfAvailable" | "resumeRequired";
+
 export type AgentRunRequest = {
   runId?: string;
   goal: string;
@@ -9,7 +11,7 @@ export type AgentRunRequest = {
   stdioBufferLimitMb?: number;
   autoAllow?: boolean;
   resumeSessionId?: string;
-  resumePolicy?: "fresh" | "resumeIfAvailable" | "resumeRequired";
+  resumePolicy?: ResumePolicy;
 };
 
 export type AgentRun = {
