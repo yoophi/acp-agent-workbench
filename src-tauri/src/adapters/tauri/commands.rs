@@ -410,6 +410,17 @@ pub async fn provision_workspace_task_worktree(
 }
 
 #[tauri::command]
+pub async fn cleanup_workspace_task_worktree(
+    storage: State<'_, StorageState>,
+    checkout_id: String,
+) -> Result<bool, String> {
+    WorkspaceTaskWorktreeUseCase::new(storage.workspace_store(), LocalGitRepository)
+        .cleanup(&checkout_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
 pub async fn create_github_pull_request(
     storage: State<'_, StorageState>,
     request: GitHubPullRequestCreateRequest,

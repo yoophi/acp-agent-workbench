@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import {
   clearAcpSession,
   cancelAgentRun,
+  cleanupWorkspaceTaskWorktree,
   listAcpSessions,
   listWorkspaceCheckouts,
   listAgents,
@@ -113,6 +114,9 @@ export function useAgentRun(tabId: string) {
     const runId = crypto.randomUUID();
     useWorkbenchStore.getState().beginRun(tabId, runId);
 
+    const originalCheckoutId = current.checkoutId ?? null;
+    const originalCwd = current.cwd;
+    let provisionedCheckoutId: string | null = null;
     let checkoutId = current.checkoutId ?? undefined;
     let cwd = current.cwd.trim() || undefined;
 
@@ -138,6 +142,7 @@ export function useAgentRun(tabId: string) {
           taskSlug: trimmedGoal,
         });
         checkoutId = worktree.id;
+        provisionedCheckoutId = worktree.id;
         cwd = undefined;
         request.checkoutId = checkoutId;
         request.cwd = cwd;
@@ -153,7 +158,20 @@ export function useAgentRun(tabId: string) {
     } catch (err) {
       const error = String(err);
       const store = useWorkbenchStore.getState();
-      store.patchTab(tabId, { error });
+      let cleanupMessage = "";
+      if (provisionedCheckoutId && current.workspaceId) {
+        try {
+          await cleanupWorkspaceTaskWorktree(provisionedCheckoutId);
+          const checkouts = await listWorkspaceCheckouts(current.workspaceId);
+          store.setWorkspaceCheckouts(current.workspaceId, checkouts);
+          store.setTabWorkspace(tabId, current.workspaceId, originalCheckoutId);
+          store.patchTab(tabId, { cwd: originalCwd });
+          cleanupMessage = " Provisioned worktree was cleaned up.";
+        } catch (cleanupErr) {
+          cleanupMessage = ` Provisioned worktree cleanup failed: ${String(cleanupErr)}`;
+        }
+      }
+      store.patchTab(tabId, { error: `${error}${cleanupMessage}` });
       store.endRun(tabId);
       store.patchTab(tabId, { activeRunId: null });
     }

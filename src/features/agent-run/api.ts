@@ -131,6 +131,10 @@ export function provisionWorkspaceTaskWorktree(args: {
   return invokeCommand<WorkspaceCheckout>("provision_workspace_task_worktree", args);
 }
 
+export function cleanupWorkspaceTaskWorktree(checkoutId: string) {
+  return invokeCommand<boolean>("cleanup_workspace_task_worktree", { checkoutId });
+}
+
 export function listSavedPrompts(workspaceId?: string | null) {
   return invokeCommand<SavedPrompt[]>("list_saved_prompts", { workspaceId });
 }

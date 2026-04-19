@@ -136,6 +136,14 @@ impl WorkspaceStore for SqliteWorkspaceStore {
         Ok(())
     }
 
+    async fn remove_checkout(&self, checkout_id: &CheckoutId) -> Result<()> {
+        sqlx::query("DELETE FROM workspace_checkouts WHERE id = ?")
+            .bind(checkout_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     async fn save_checkout(&self, checkout: WorkspaceCheckout) -> Result<WorkspaceCheckout> {
         let mut tx = self.pool.begin().await?;
         upsert_checkout(&mut tx, &checkout).await?;

@@ -141,6 +141,17 @@ impl GitRepositoryPort for LocalGitRepository {
         )?;
         git_status(worktree_path)
     }
+
+    fn remove_worktree(&self, worktree_path: &Path, branch_name: Option<&str>) -> Result<()> {
+        let common_dir = run_git_args(worktree_path, &["rev-parse", "--git-common-dir"])?;
+        let common_dir = normalize_git_dir(worktree_path, common_dir.trim())?;
+        let path_arg = worktree_path.to_string_lossy().to_string();
+        run_git_dir_args(&common_dir, &["worktree", "remove", "--force", &path_arg])?;
+        if let Some(branch_name) = branch_name.map(str::trim).filter(|value| !value.is_empty()) {
+            run_git_dir_args(&common_dir, &["branch", "-D", branch_name])?;
+        }
+        Ok(())
+    }
 }
 
 pub fn parse_github_origin(raw_url: &str) -> Result<GitOrigin> {
@@ -265,6 +276,28 @@ fn run_git_args(cwd: &Path, args: &[&str]) -> Result<String> {
         bail!("git command failed: {}", stderr.trim());
     }
     Ok(String::from_utf8(output.stdout)?)
+}
+
+fn run_git_dir_args(git_dir: &Path, args: &[&str]) -> Result<String> {
+    let output = Command::new("git")
+        .arg("--git-dir")
+        .arg(git_dir)
+        .args(args)
+        .output()?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("git command failed: {}", stderr.trim());
+    }
+    Ok(String::from_utf8(output.stdout)?)
+}
+
+fn normalize_git_dir(workdir: &Path, raw: &str) -> Result<PathBuf> {
+    let path = PathBuf::from(raw);
+    if path.is_absolute() {
+        Ok(path)
+    } else {
+        normalize_path(&workdir.join(path))
+    }
 }
 
 #[cfg(test)]

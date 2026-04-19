@@ -8,6 +8,7 @@ vi.mock("../../shared/api", () => ({
 import { invokeCommand, listenEvent } from "../../shared/api";
 import {
   cancelAgentRun,
+  cleanupWorkspaceTaskWorktree,
   clearAcpSession,
   createGitHubPullRequest,
   createPullRequestReviewDraft,
@@ -173,7 +174,7 @@ describe("agent-run api", () => {
     });
   });
 
-  it("provisionWorkspaceTaskWorktree forwards workspace task isolation args", async () => {
+  it("workspace task worktree helpers forward task isolation args", async () => {
     mockedInvoke.mockResolvedValueOnce({
       id: "checkout-worktree",
       workspaceId: "workspace-1",
@@ -195,6 +196,12 @@ describe("agent-run api", () => {
       workspaceId: "workspace-1",
       checkoutId: "checkout-main",
       taskSlug: "Issue #63",
+    });
+
+    await cleanupWorkspaceTaskWorktree("checkout-worktree");
+
+    expect(mockedInvoke).toHaveBeenNthCalledWith(2, "cleanup_workspace_task_worktree", {
+      checkoutId: "checkout-worktree",
     });
   });
 
