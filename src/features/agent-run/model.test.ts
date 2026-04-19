@@ -1,98 +1,105 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
-  createTabState,
-  createWorkspaceViewState,
   selectActiveRun,
-  selectActiveWorkspaceView,
-  selectRun,
+  selectWorkspaceView,
+  selectWorkspaceViewRuns,
   useWorkbenchStore,
 } from "./model";
 
-function resetWorkbench(preset = {}) {
-  const tab = createTabState({ id: "view-1", ...preset }, 0);
-  const view = createWorkspaceViewState({ id: tab.id, ...preset }, 0);
-  useWorkbenchStore.setState({
-    workspaces: [],
-    checkoutsByWorkspaceId: {},
-    workspaceError: null,
-    workspaceViews: [view],
-    runsById: {},
-    activeWorkspaceViewId: view.id,
-    tabs: [tab],
-    activeTabId: tab.id,
-  });
-  return tab.id;
-}
-
-describe("workspace-scoped run model", () => {
+describe("workspace-scoped run state", () => {
   beforeEach(() => {
-    resetWorkbench({
+    useWorkbenchStore.setState(useWorkbenchStore.getInitialState(), true);
+  });
+
+  it("creates and activates a workspace view alongside a tab", () => {
+    const tabId = useWorkbenchStore.getState().addTab({
+      id: "tab-2",
+      title: "Workbench",
       workspaceId: "workspace-1",
       checkoutId: "checkout-1",
-      cwd: "/repo",
+      cwd: "/repo/workbench",
+      goal: "ship the feature",
       selectedAgentId: "codex",
-      goal: "implement feature",
-      customCommand: "codex",
+    });
+
+    const state = useWorkbenchStore.getState();
+    const view = selectWorkspaceView(state, tabId);
+
+    expect(state.activeTabId).toBe(tabId);
+    expect(state.activeWorkspaceViewId).toBe(tabId);
+    expect(view).toMatchObject({
+      id: tabId,
+      title: "Workbench",
+      workspaceId: "workspace-1",
+      checkoutId: "checkout-1",
+      cwd: "/repo/workbench",
+      activeRunId: null,
+    });
+    expect(view?.draft).toMatchObject({
+      goal: "ship the feature",
+      selectedAgentId: "codex",
     });
   });
 
-  it("creates a workspace view and run snapshot when a run begins", () => {
-    useWorkbenchStore.getState().beginRun("view-1", "run-1");
+  it("snapshots run-specific request state when a run begins", () => {
+    const tabId = useWorkbenchStore.getState().activeTabId;
+    useWorkbenchStore.getState().patchTab(tabId, {
+      workspaceId: "workspace-1",
+      checkoutId: "checkout-1",
+      cwd: "/repo/workbench",
+      goal: "implement workspace tabs",
+      selectedAgentId: "claude-code",
+    });
+
+    useWorkbenchStore.getState().beginRun(tabId, "run-1");
+    useWorkbenchStore.getState().patchTab(tabId, { goal: "draft the next run" });
 
     const state = useWorkbenchStore.getState();
-    const view = selectActiveWorkspaceView(state);
-    const run = selectActiveRun(state, "view-1");
+    const run = selectActiveRun(state, tabId);
+    const view = selectWorkspaceView(state, tabId);
 
     expect(view?.activeRunId).toBe("run-1");
+    expect(view?.draft.goal).toBe("draft the next run");
     expect(run).toMatchObject({
       id: "run-1",
-      workspaceViewId: "view-1",
+      workspaceViewId: tabId,
       workspaceId: "workspace-1",
       checkoutId: "checkout-1",
-      cwd: "/repo",
+      cwd: "/repo/workbench",
       sessionActive: true,
       awaitingResponse: true,
-      request: {
-        selectedAgentId: "codex",
-        goal: "implement feature",
-        customCommand: "codex",
-      },
+    });
+    expect(run?.request).toMatchObject({
+      goal: "implement workspace tabs",
+      selectedAgentId: "claude-code",
     });
   });
 
-  it("keeps compatibility tab state and run state in sync for queued follow-ups", () => {
-    const store = useWorkbenchStore.getState();
-    store.beginRun("view-1", "run-1");
-    store.enqueueFollowUp("view-1", "next prompt");
+  it("keeps run timeline and lifecycle state in the workspace run map", () => {
+    const tabId = useWorkbenchStore.getState().activeTabId;
+    useWorkbenchStore.getState().beginRun(tabId, "run-1");
 
-    const state = useWorkbenchStore.getState();
-    const tabItem = state.tabs[0].followUpQueue[0];
-    const runItem = selectRun(state, "run-1")?.followUpQueue[0];
-
-    expect(runItem).toEqual(tabItem);
-    expect(runItem?.text).toBe("next prompt");
-
-    const dequeued = useWorkbenchStore.getState().dequeueFollowUp("view-1");
-
-    expect(dequeued).toEqual(tabItem);
-    expect(useWorkbenchStore.getState().tabs[0].followUpQueue).toEqual([]);
-    expect(selectRun(useWorkbenchStore.getState(), "run-1")?.followUpQueue).toEqual([]);
-  });
-
-  it("routes run events into both the compatibility tab and AgentRunState", () => {
-    const store = useWorkbenchStore.getState();
-    store.beginRun("view-1", "run-1");
-    store.dispatchRunEvent("run-1", {
+    useWorkbenchStore.getState().dispatchRunEvent("run-1", {
+      type: "agentMessage",
+      text: "first ",
+    });
+    useWorkbenchStore.getState().dispatchRunEvent("run-1", {
+      type: "agentMessage",
+      text: "reply",
+    });
+    useWorkbenchStore.getState().dispatchRunEvent("run-1", {
       type: "lifecycle",
-      status: "promptCompleted",
+      status: "completed",
       message: "done",
     });
 
     const state = useWorkbenchStore.getState();
+    const [run] = selectWorkspaceViewRuns(state, tabId);
 
-    expect(state.tabs[0].awaitingResponse).toBe(false);
-    expect(selectRun(state, "run-1")?.awaitingResponse).toBe(false);
-    expect(state.tabs[0].items).toHaveLength(1);
-    expect(selectRun(state, "run-1")?.items).toHaveLength(1);
+    expect(run.id).toBe("run-1");
+    expect(run.sessionActive).toBe(false);
+    expect(run.awaitingResponse).toBe(false);
+    expect(run.completedAt).toEqual(expect.any(Number));
+    expect(run.items.map((item) => item.body)).toEqual(["first reply", "done"]);
   });
 });
