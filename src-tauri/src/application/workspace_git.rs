@@ -218,6 +218,10 @@ mod tests {
             Ok(())
         }
 
+        async fn remove_checkout(&self, _checkout_id: &CheckoutId) -> Result<()> {
+            Ok(())
+        }
+
         async fn refresh_checkout(
             &self,
             _checkout_id: &CheckoutId,
@@ -270,6 +274,10 @@ mod tests {
             _worktree_path: &Path,
         ) -> Result<WorkspaceGitStatus> {
             panic!("confirmation should be checked before worktree creation")
+        }
+
+        fn remove_worktree(&self, _worktree_path: &Path, _branch_name: Option<&str>) -> Result<()> {
+            panic!("confirmation should be checked before worktree cleanup")
         }
     }
 
@@ -349,6 +357,10 @@ mod tests {
         }
 
         async fn remove_workspace(&self, _workspace_id: &WorkspaceId) -> Result<()> {
+            Ok(())
+        }
+
+        async fn remove_checkout(&self, _checkout_id: &CheckoutId) -> Result<()> {
             Ok(())
         }
 

@@ -31,4 +31,6 @@ pub trait GitRepositoryPort: Clone + Send + Sync + 'static {
         branch_name: &str,
         worktree_path: &Path,
     ) -> Result<WorkspaceGitStatus>;
+
+    fn remove_worktree(&self, worktree_path: &Path, branch_name: Option<&str>) -> Result<()>;
 }
