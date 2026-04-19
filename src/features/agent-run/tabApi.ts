@@ -1,6 +1,9 @@
 import type { Workspace, WorkspaceCheckout } from "../../entities/workspace";
+import { useShallow } from "zustand/react/shallow";
 import { selectTab, selectTabList, useWorkbenchStore, type TabState } from "./model";
 import { closeWorkbenchTab } from "./tabActions";
+
+const EMPTY_CHECKOUTS: WorkspaceCheckout[] = [];
 
 export type WorkbenchTabListItem = Readonly<
   Pick<
@@ -26,7 +29,7 @@ export function useActiveTabId() {
 }
 
 export function useTabList(): WorkbenchTabListItem[] {
-  return useWorkbenchStore(selectTabList);
+  return useWorkbenchStore(useShallow(selectTabList));
 }
 
 export function createWorkbenchTab() {
@@ -40,12 +43,12 @@ export function activateWorkbenchTab(tabId: string) {
 export { closeWorkbenchTab };
 
 export function useWorkspaceState(tabId: string) {
-  return useWorkbenchStore((state) => {
+  return useWorkbenchStore(useShallow((state) => {
     const tab = selectTab(state, tabId);
     const selectedWorkspace = state.workspaces.find((entry) => entry.id === tab?.workspaceId);
     const checkouts = tab?.workspaceId
-      ? (state.checkoutsByWorkspaceId[tab.workspaceId] ?? [])
-      : [];
+      ? (state.checkoutsByWorkspaceId[tab.workspaceId] ?? EMPTY_CHECKOUTS)
+      : EMPTY_CHECKOUTS;
     const selectedCheckout = checkouts.find((entry) => entry.id === tab?.checkoutId);
     const activeSameWorkdirCount = tab
       ? selectTabList(state).filter(
@@ -69,7 +72,7 @@ export function useWorkspaceState(tabId: string) {
       workspaceError: state.workspaceError,
       activeSameWorkdirCount,
     };
-  });
+  }));
 }
 
 export function setWorkbenchWorkspaces(workspaces: Workspace[]) {

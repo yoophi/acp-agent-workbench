@@ -10,6 +10,8 @@ import {
 import type { Workspace, WorkspaceCheckout } from "../../entities/workspace";
 
 const defaultGoal = "todo rest api 를 nodejs 로 작성해주세요. 데이터는 json 파일로 저장해주세요";
+const EMPTY_FOLLOW_UP_QUEUE: FollowUpQueueItem[] = [];
+const EMPTY_TIMELINE_ITEMS: TimelineItem[] = [];
 export const defaultRalphLoopSettings: RalphLoopSettings = {
   enabled: false,
   maxIterations: 3,
@@ -870,22 +872,71 @@ export function selectWorkspaceViewRuns(
 }
 
 export function selectTab(state: WorkbenchState, tabId: string): TabState | undefined {
+  const cached = selectTabCache.get(tabId);
+  if (
+    cached &&
+    cached.workspaceViews === state.workspaceViews &&
+    cached.runsById === state.runsById &&
+    cached.tabs === state.tabs
+  ) {
+    return cached.result;
+  }
+
   const view = selectWorkspaceView(state, tabId);
-  if (!view) return state.tabs.find((tab) => tab.id === tabId);
+  if (!view) {
+    const result = state.tabs.find((tab) => tab.id === tabId);
+    selectTabCache.set(tabId, {
+      workspaceViews: state.workspaceViews,
+      runsById: state.runsById,
+      tabs: state.tabs,
+      result,
+    });
+    return result;
+  }
   const activeRun = view.activeRunId ? selectRun(state, view.activeRunId) : undefined;
   const fallback = state.tabs.find((tab) => tab.id === tabId);
-  return workspaceViewToTabState(view, activeRun, fallback);
+  const result = workspaceViewToTabState(view, activeRun, fallback);
+  selectTabCache.set(tabId, {
+    workspaceViews: state.workspaceViews,
+    runsById: state.runsById,
+    tabs: state.tabs,
+    result,
+  });
+  return result;
 }
 
 export function selectTabList(state: WorkbenchState): TabState[] {
-  if (state.workspaceViews.length === 0) return state.tabs;
-  return state.workspaceViews.map((view) =>
+  if (
+    selectTabListCache.workspaceViews === state.workspaceViews &&
+    selectTabListCache.runsById === state.runsById &&
+    selectTabListCache.tabs === state.tabs
+  ) {
+    return selectTabListCache.result;
+  }
+
+  if (state.workspaceViews.length === 0) {
+    selectTabListCache = {
+      workspaceViews: state.workspaceViews,
+      runsById: state.runsById,
+      tabs: state.tabs,
+      result: state.tabs,
+    };
+    return state.tabs;
+  }
+  const result = state.workspaceViews.map((view) =>
     workspaceViewToTabState(
       view,
       view.activeRunId ? selectRun(state, view.activeRunId) : undefined,
       state.tabs.find((tab) => tab.id === view.id),
     ),
   );
+  selectTabListCache = {
+    workspaceViews: state.workspaceViews,
+    runsById: state.runsById,
+    tabs: state.tabs,
+    result,
+  };
+  return result;
 }
 
 function workspaceViewToTabState(
@@ -912,8 +963,8 @@ function workspaceViewToTabState(
     sessionActive: run?.sessionActive ?? fallback?.sessionActive ?? false,
     awaitingResponse: run?.awaitingResponse ?? fallback?.awaitingResponse ?? false,
     followUpDraft: view.followUpDraft,
-    followUpQueue: run?.followUpQueue ?? fallback?.followUpQueue ?? [],
-    items: run?.items ?? fallback?.items ?? [],
+    followUpQueue: run?.followUpQueue ?? fallback?.followUpQueue ?? EMPTY_FOLLOW_UP_QUEUE,
+    items: run?.items ?? fallback?.items ?? EMPTY_TIMELINE_ITEMS,
     filter: view.filter,
     error: run?.runError ?? view.viewError,
     unreadCount: view.unreadCount,
@@ -921,6 +972,20 @@ function workspaceViewToTabState(
     closing: view.closing,
   };
 }
+
+type SelectorCacheRefs = Pick<WorkbenchState, "workspaceViews" | "runsById" | "tabs">;
+
+type SelectTabCacheEntry = SelectorCacheRefs & {
+  result: TabState | undefined;
+};
+
+let selectTabListCache: SelectorCacheRefs & { result: TabState[] } = {
+  workspaceViews: [],
+  runsById: {},
+  tabs: [],
+  result: [],
+};
+const selectTabCache = new Map<string, SelectTabCacheEntry>();
 
 function upsertItem<T>(items: T[], item: T, getId: (item: T) => string): T[] {
   const id = getId(item);

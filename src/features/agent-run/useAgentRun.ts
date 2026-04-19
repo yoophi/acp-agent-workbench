@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
   clearAcpSession,
   cancelAgentRun,
@@ -34,7 +35,7 @@ export function useAgentRun(tabId: string) {
   const agentsQuery = useQuery({ queryKey: ["agents"], queryFn: listAgents });
   const agents = agentsQuery.data ?? [];
 
-  const tab = useWorkbenchStore((state) => selectTab(state, tabId));
+  const tab = useWorkbenchStore(useShallow((state) => selectTab(state, tabId)));
 
   const patch = useCallback(
     (update: Partial<TabState>) => useWorkbenchStore.getState().patchTab(tabId, update),
