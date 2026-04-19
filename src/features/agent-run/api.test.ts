@@ -14,6 +14,7 @@ import {
   createPullRequestReviewDraft,
   createWorkspaceCommit,
   deletePullRequestReviewDraft,
+  detachAgentRunTab,
   getGitHubPullRequestContext,
   getWorkspaceGitStatus,
   listAcpSessions,
@@ -57,6 +58,54 @@ describe("agent-run api", () => {
     expect(mockedInvoke).toHaveBeenNthCalledWith(2, "send_prompt_to_run", {
       runId: "run-1",
       prompt: "follow up",
+    });
+  });
+
+  it("detachAgentRunTab forwards the tab snapshot and active run id", async () => {
+    mockedInvoke.mockResolvedValueOnce({
+      label: "workbench-1",
+      isMain: false,
+      title: "ACP Agent Workbench",
+    });
+
+    await detachAgentRunTab({
+      id: "tab-1",
+      title: "Review",
+      workspaceId: "workspace-1",
+      checkoutId: "checkout-1",
+      selectedAgentId: "codex",
+      goal: "review the diff",
+      cwd: "/repo",
+      customCommand: "",
+      stdioBufferLimitMb: 50,
+      autoAllow: true,
+      resumePolicy: "fresh",
+      ralphLoop: {
+        enabled: false,
+        maxIterations: 3,
+        promptTemplate: "Continue",
+        stopOnError: true,
+        stopOnPermission: true,
+        delayMs: 0,
+      },
+      idleTimeoutSec: 60,
+      idleRemainingSec: null,
+      activeRunId: "run-1",
+      sessionActive: true,
+      awaitingResponse: false,
+      followUpDraft: "",
+      followUpQueue: [],
+      items: [],
+      filter: "all",
+      error: null,
+      unreadCount: 0,
+      permissionPending: false,
+      closing: false,
+    });
+
+    expect(mockedInvoke).toHaveBeenCalledWith("detach_tab", {
+      tab: expect.objectContaining({ id: "tab-1" }),
+      runId: "run-1",
     });
   });
 

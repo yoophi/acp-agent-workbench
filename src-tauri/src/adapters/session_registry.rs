@@ -20,6 +20,7 @@ fn read_max_runs_from_env() -> Option<usize> {
 pub struct AppState {
     runs: Arc<Mutex<HashMap<String, RunSlot>>>,
     run_owners: Arc<Mutex<HashMap<String, String>>>,
+    window_bootstraps: Arc<Mutex<HashMap<String, serde_json::Value>>>,
     permissions: PermissionBroker,
     max_concurrent_runs: Option<usize>,
 }
@@ -35,6 +36,7 @@ impl AppState {
         Self {
             runs: Arc::default(),
             run_owners: Arc::default(),
+            window_bootstraps: Arc::default(),
             permissions: PermissionBroker::default(),
             max_concurrent_runs,
         }
@@ -66,6 +68,17 @@ impl AppState {
             .iter()
             .filter_map(|(run_id, owner)| (owner == owner_window_label).then(|| run_id.clone()))
             .collect()
+    }
+
+    pub async fn set_window_bootstrap(&self, window_label: String, bootstrap: serde_json::Value) {
+        self.window_bootstraps
+            .lock()
+            .await
+            .insert(window_label, bootstrap);
+    }
+
+    pub async fn take_window_bootstrap(&self, window_label: &str) -> Option<serde_json::Value> {
+        self.window_bootstraps.lock().await.remove(window_label)
     }
 }
 

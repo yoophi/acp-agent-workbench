@@ -7,4 +7,5 @@ export type WorkbenchWindowInfo = {
 export type WorkbenchWindowBootstrap = {
   label: string;
   isMain: boolean;
+  detachedTab?: unknown;
 };

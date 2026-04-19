@@ -116,6 +116,7 @@ type WorkbenchState = {
   addTab: (preset?: Partial<TabState>) => string;
   closeTab: (tabId: string) => string | null;
   forceCloseTab: (tabId: string) => string | null;
+  hydrateDetachedTab: (tab: TabState) => void;
   activateTab: (tabId: string) => void;
   renameTab: (tabId: string, title: string) => void;
   patchTab: (tabId: string, patch: Partial<TabState>) => void;
@@ -223,6 +224,20 @@ function runStateFromTab(tab: TabState, runId: string): AgentRunState {
     runError: null,
     createdAt: Date.now(),
     completedAt: null,
+  };
+}
+
+function runStateFromDetachedTab(tab: TabState, runId: string): AgentRunState {
+  return {
+    ...runStateFromTab(tab, runId),
+    sessionActive: tab.sessionActive,
+    awaitingResponse: tab.awaitingResponse,
+    idleRemainingSec: tab.idleRemainingSec,
+    permissionPending: tab.permissionPending,
+    followUpQueue: tab.followUpQueue,
+    items: tab.items,
+    runError: tab.error,
+    completedAt: tab.sessionActive ? null : Date.now(),
   };
 }
 
@@ -396,7 +411,13 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
 
   forceCloseTab: (tabId) => {
     const state = get();
-    if (!state.tabs.some((t) => t.id === tabId)) return state.activeTabId;
+    const target = state.tabs.find((t) => t.id === tabId);
+    if (!target) return state.activeTabId;
+    const runsById = target.activeRunId
+      ? Object.fromEntries(
+          Object.entries(state.runsById).filter(([runId]) => runId !== target.activeRunId),
+        )
+      : state.runsById;
     if (state.tabs.length <= 1) {
       const replacement = createTabState({}, 0);
       const replacementView = tabToWorkspaceView(replacement);
@@ -405,6 +426,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         activeTabId: replacement.id,
         workspaceViews: [replacementView],
         activeWorkspaceViewId: replacementView.id,
+        runsById,
       });
       return replacement.id;
     }
@@ -420,8 +442,23 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
       activeTabId: nextActive,
       workspaceViews: state.workspaceViews.filter((view) => view.id !== tabId),
       activeWorkspaceViewId: nextActive,
+      runsById,
     });
     return nextActive;
+  },
+
+  hydrateDetachedTab: (snapshot) => {
+    const tab = createTabState({ ...snapshot, closing: false }, 0);
+    const workspaceView = tabToWorkspaceView(tab);
+    set({
+      tabs: [tab],
+      activeTabId: tab.id,
+      workspaceViews: [workspaceView],
+      activeWorkspaceViewId: workspaceView.id,
+      runsById: tab.activeRunId
+        ? { [tab.activeRunId]: runStateFromDetachedTab(tab, tab.activeRunId) }
+        : {},
+    });
   },
 
   activateTab: (tabId) =>
@@ -937,6 +974,17 @@ export function selectTabList(state: WorkbenchState): TabState[] {
     result,
   };
   return result;
+}
+
+export function isTabState(value: unknown): value is TabState {
+  if (!value || typeof value !== "object") return false;
+  const tab = value as Partial<TabState>;
+  return (
+    typeof tab.id === "string" &&
+    typeof tab.title === "string" &&
+    typeof tab.goal === "string" &&
+    typeof tab.cwd === "string"
+  );
 }
 
 function workspaceViewToTabState(

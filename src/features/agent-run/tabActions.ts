@@ -1,4 +1,4 @@
-import { cancelAgentRun } from "./api";
+import { cancelAgentRun, detachAgentRunTab } from "./api";
 import { selectTab, useWorkbenchStore } from "./model";
 
 const CLOSE_FALLBACK_MS = 5000;
@@ -36,4 +36,19 @@ export async function closeWorkbenchTab(tabId: string) {
   }
 
   store.closeTab(tabId);
+}
+
+export async function detachWorkbenchTab(tabId: string) {
+  const store = useWorkbenchStore.getState();
+  const tab = selectTab(store, tabId);
+  if (!tab || tab.closing) return;
+
+  try {
+    await detachAgentRunTab(tab);
+    useWorkbenchStore.getState().forceCloseTab(tabId);
+  } catch (err) {
+    useWorkbenchStore.getState().patchTab(tabId, {
+      error: `탭 분리 실패: ${String(err)}`,
+    });
+  }
 }

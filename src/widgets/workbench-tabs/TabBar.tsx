@@ -3,6 +3,7 @@ import {
   activateWorkbenchTab,
   closeWorkbenchTab,
   createWorkbenchTab,
+  detachWorkbenchTab,
   useActiveTabId,
   useTabList,
   type WorkbenchTabListItem,
@@ -83,6 +84,10 @@ export function TabBar() {
     void closeWorkbenchTab(tabId);
   }, []);
 
+  const handleDetach = useCallback((tabId: string) => {
+    void detachWorkbenchTab(tabId);
+  }, []);
+
   return (
     <div
       className="mb-4 flex items-center gap-1.5 overflow-x-auto rounded-lg border bg-card/80 p-1 shadow-sm"
@@ -122,6 +127,21 @@ export function TabBar() {
                 {tab.unreadCount > 99 ? "99+" : tab.unreadCount}
               </Badge>
             ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+              aria-label="탭을 새 창으로 분리"
+              disabled={tab.closing}
+              onClick={(event) => {
+                event.stopPropagation();
+                void handleDetach(tab.id);
+              }}
+              title="탭을 새 창으로 분리"
+            >
+              ↗
+            </Button>
             <Button
               type="button"
               variant="ghost"

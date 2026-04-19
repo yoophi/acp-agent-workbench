@@ -1,7 +1,13 @@
 import type { Workspace, WorkspaceCheckout } from "../../entities/workspace";
 import { useShallow } from "zustand/react/shallow";
-import { selectTab, selectTabList, useWorkbenchStore, type TabState } from "./model";
-import { closeWorkbenchTab } from "./tabActions";
+import {
+  isTabState,
+  selectTab,
+  selectTabList,
+  useWorkbenchStore,
+  type TabState,
+} from "./model";
+import { closeWorkbenchTab, detachWorkbenchTab } from "./tabActions";
 
 const EMPTY_CHECKOUTS: WorkspaceCheckout[] = [];
 
@@ -40,7 +46,13 @@ export function activateWorkbenchTab(tabId: string) {
   useWorkbenchStore.getState().activateTab(tabId);
 }
 
-export { closeWorkbenchTab };
+export { closeWorkbenchTab, detachWorkbenchTab };
+
+export function hydrateDetachedWorkbenchTab(tab: unknown) {
+  if (!isTabState(tab)) return false;
+  useWorkbenchStore.getState().hydrateDetachedTab(tab);
+  return true;
+}
 
 export function useWorkspaceState(tabId: string) {
   return useWorkbenchStore(useShallow((state) => {
