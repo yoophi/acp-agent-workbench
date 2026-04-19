@@ -6,7 +6,10 @@ use std::{
 
 use crate::{
     adapters::acp::util::{expand_tilde, normalize_path},
-    domain::git::{WorkspaceDiffSummary, WorkspaceGitFileStatus, WorkspaceGitStatus},
+    domain::git::{
+        WorkspaceCommitResult, WorkspaceDiffSummary, WorkspaceGitFileStatus, WorkspaceGitStatus,
+        WorkspacePushResult,
+    },
     domain::workspace::GitOrigin,
     ports::git_repository::GitRepositoryPort,
 };
@@ -56,6 +59,73 @@ impl GitRepositoryPort for LocalGitRepository {
         let status = git_status(workdir)?;
         let diff_stat = run_git_args(Path::new(&status.root), &["diff", "--stat", "HEAD", "--"])?;
         Ok(WorkspaceDiffSummary { status, diff_stat })
+    }
+
+    fn commit(
+        &self,
+        workdir: &Path,
+        message: &str,
+        files: &[String],
+    ) -> Result<WorkspaceCommitResult> {
+        let status = git_status(workdir)?;
+        let root = Path::new(&status.root);
+        let message = message.trim();
+        if message.is_empty() {
+            bail!("commit message is required");
+        }
+        if files.is_empty() {
+            bail!("at least one file must be selected for commit");
+        }
+        let clean_files = files
+            .iter()
+            .map(|file| file.trim())
+            .filter(|file| !file.is_empty())
+            .collect::<Vec<_>>();
+        if clean_files.is_empty() {
+            bail!("at least one file must be selected for commit");
+        }
+
+        let mut add_args = vec!["add", "--"];
+        add_args.extend(clean_files.iter().copied());
+        run_git_args(root, &add_args)?;
+        run_git_args(root, &["commit", "-m", message])?;
+        let commit_sha = run_git_args(root, &["rev-parse", "HEAD"])?
+            .trim()
+            .to_string();
+        Ok(WorkspaceCommitResult {
+            commit_sha,
+            status: git_status(root)?,
+        })
+    }
+
+    fn push(
+        &self,
+        workdir: &Path,
+        remote: &str,
+        branch: &str,
+        set_upstream: bool,
+    ) -> Result<WorkspacePushResult> {
+        let status = git_status(workdir)?;
+        let root = Path::new(&status.root);
+        let remote = remote.trim();
+        let branch = branch.trim();
+        if remote.is_empty() {
+            bail!("remote is required");
+        }
+        if branch.is_empty() {
+            bail!("branch is required");
+        }
+
+        let mut args = vec!["push"];
+        if set_upstream {
+            args.push("-u");
+        }
+        args.extend([remote, branch]);
+        run_git_args(root, &args)?;
+        Ok(WorkspacePushResult {
+            remote: remote.to_string(),
+            branch: branch.to_string(),
+        })
     }
 }
 

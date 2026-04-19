@@ -7,7 +7,7 @@ use crate::{
     adapters::{
         acp::runner::AcpAgentRunner, acp_session_store_sqlite::SqliteAcpSessionStore,
         agent_catalog::ConfigurableAgentCatalog, fs::LocalGoalFileReader, git::LocalGitRepository,
-        session_registry::AppState, storage_state::StorageState,
+        github::GhCliPullRequestClient, session_registry::AppState, storage_state::StorageState,
         tauri::event_sink::TauriRunEventSink,
     },
     application::{
@@ -19,7 +19,11 @@ use crate::{
     domain::{
         acp_session::AcpSessionLookup,
         agent::AgentDescriptor,
-        git::{WorkspaceDiffSummary, WorkspaceGitStatus},
+        git::{
+            GitHubPullRequestCreateRequest, GitHubPullRequestSummary, WorkspaceCommitRequest,
+            WorkspaceCommitResult, WorkspaceDiffSummary, WorkspaceGitStatus, WorkspacePushRequest,
+            WorkspacePushResult,
+        },
         run::{AgentRun, AgentRunRequest, ResumePolicy},
         saved_prompt::{
             CreateSavedPromptInput, SavedPrompt, SavedPromptId, UpdateSavedPromptPatch,
@@ -307,6 +311,39 @@ pub async fn summarize_workspace_diff(
 ) -> Result<WorkspaceDiffSummary, String> {
     WorkspaceGitUseCase::new(storage.workspace_store(), LocalGitRepository)
         .diff_summary(&workspace_id, checkout_id.as_deref())
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn create_workspace_commit(
+    storage: State<'_, StorageState>,
+    request: WorkspaceCommitRequest,
+) -> Result<WorkspaceCommitResult, String> {
+    WorkspaceGitUseCase::new(storage.workspace_store(), LocalGitRepository)
+        .commit(request)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn push_workspace_branch(
+    storage: State<'_, StorageState>,
+    request: WorkspacePushRequest,
+) -> Result<WorkspacePushResult, String> {
+    WorkspaceGitUseCase::new(storage.workspace_store(), LocalGitRepository)
+        .push(request)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn create_github_pull_request(
+    storage: State<'_, StorageState>,
+    request: GitHubPullRequestCreateRequest,
+) -> Result<GitHubPullRequestSummary, String> {
+    WorkspaceGitUseCase::new(storage.workspace_store(), LocalGitRepository)
+        .create_pull_request(GhCliPullRequestClient, request)
         .await
         .map_err(|err| err.to_string())
 }

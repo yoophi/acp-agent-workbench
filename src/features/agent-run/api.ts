@@ -2,11 +2,17 @@ import type { AgentDescriptor } from "../../entities/agent";
 import type { AgentRun, AgentRunRequest, RunEventEnvelope } from "../../entities/message";
 import type { CreateSavedPromptInput, SavedPrompt, UpdateSavedPromptPatch } from "../../entities/saved-prompt";
 import type {
+  GitHubPullRequestCreateRequest,
+  GitHubPullRequestSummary,
   RegisteredWorkspace,
   Workspace,
   WorkspaceCheckout,
+  WorkspaceCommitRequest,
+  WorkspaceCommitResult,
   WorkspaceDiffSummary,
   WorkspaceGitStatus,
+  WorkspacePushRequest,
+  WorkspacePushResult,
 } from "../../entities/workspace";
 import { invokeCommand, listenEvent } from "../../shared/api";
 
@@ -60,6 +66,18 @@ export function getWorkspaceGitStatus(workspaceId: string, checkoutId?: string |
 
 export function summarizeWorkspaceDiff(workspaceId: string, checkoutId?: string | null) {
   return invokeCommand<WorkspaceDiffSummary>("summarize_workspace_diff", { workspaceId, checkoutId });
+}
+
+export function createWorkspaceCommit(request: WorkspaceCommitRequest) {
+  return invokeCommand<WorkspaceCommitResult>("create_workspace_commit", { request });
+}
+
+export function pushWorkspaceBranch(request: WorkspacePushRequest) {
+  return invokeCommand<WorkspacePushResult>("push_workspace_branch", { request });
+}
+
+export function createGitHubPullRequest(request: GitHubPullRequestCreateRequest) {
+  return invokeCommand<GitHubPullRequestSummary>("create_github_pull_request", { request });
 }
 
 export function listSavedPrompts(workspaceId?: string | null) {

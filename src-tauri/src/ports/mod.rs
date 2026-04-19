@@ -2,6 +2,7 @@ pub mod acp_session_store;
 pub mod agent_catalog;
 pub mod event_sink;
 pub mod git_repository;
+pub mod github_pull_request;
 pub mod goal_file;
 pub mod permission;
 pub mod saved_prompt_store;

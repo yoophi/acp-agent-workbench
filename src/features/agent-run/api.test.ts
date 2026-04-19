@@ -8,8 +8,11 @@ vi.mock("../../shared/api", () => ({
 import { invokeCommand, listenEvent } from "../../shared/api";
 import {
   cancelAgentRun,
+  createGitHubPullRequest,
+  createWorkspaceCommit,
   getWorkspaceGitStatus,
   listenRunEvents,
+  pushWorkspaceBranch,
   sendPromptToRun,
   startAgentRun,
   summarizeWorkspaceDiff,
@@ -77,6 +80,50 @@ describe("agent-run api", () => {
     expect(mockedInvoke).toHaveBeenNthCalledWith(2, "summarize_workspace_diff", {
       workspaceId: "ws-1",
       checkoutId: "co-1",
+    });
+  });
+
+  it("workspace publishing helpers pass request payloads under request", async () => {
+    mockedInvoke.mockResolvedValue(undefined);
+
+    const commitRequest = {
+      workspaceId: "ws-1",
+      checkoutId: "co-1",
+      message: "Add feature",
+      files: ["src/index.ts"],
+      confirmed: true,
+    };
+    const pushRequest = {
+      workspaceId: "ws-1",
+      checkoutId: "co-1",
+      remote: "origin",
+      branch: "feature/test",
+      setUpstream: true,
+      confirmed: true,
+    };
+    const pullRequestRequest = {
+      workspaceId: "ws-1",
+      checkoutId: "co-1",
+      base: "main",
+      head: "feature/test",
+      title: "Add feature",
+      body: "Summary",
+      draft: true,
+      confirmed: true,
+    };
+
+    await createWorkspaceCommit(commitRequest);
+    await pushWorkspaceBranch(pushRequest);
+    await createGitHubPullRequest(pullRequestRequest);
+
+    expect(mockedInvoke).toHaveBeenNthCalledWith(1, "create_workspace_commit", {
+      request: commitRequest,
+    });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(2, "push_workspace_branch", {
+      request: pushRequest,
+    });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(3, "create_github_pull_request", {
+      request: pullRequestRequest,
     });
   });
 });
