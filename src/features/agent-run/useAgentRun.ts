@@ -22,6 +22,7 @@ import type { SavedPromptRunMode } from "../../entities/saved-prompt";
 import type { LocalTaskSummary } from "../../entities/workspace";
 import {
   defaultRalphLoopSettings,
+  localTaskRunSource,
   selectTab,
   selectTabList,
   useWorkbenchStore,
@@ -96,13 +97,14 @@ export function useAgentRun(tabId: string) {
     const current = selectTab(useWorkbenchStore.getState(), tabId);
     if (!current) return;
     const trimmedGoal = (options.goal ?? current.goal).trim();
+    const sourceTask = options.sourceTask ? localTaskRunSource(options.sourceTask) : current.sourceTask;
     if (!trimmedGoal) {
       patch({ error: "Goal is empty." });
       return;
     }
-    if (options.sourceTask?.blocked && !options.allowBlockedTask) {
+    if (sourceTask?.blocked && !options.allowBlockedTask) {
       patch({
-        error: `Task ${options.sourceTask.id} is blocked by dependencies and requires explicit override.`,
+        error: `Task ${sourceTask.id} is blocked by dependencies and requires explicit override.`,
       });
       return;
     }
@@ -125,13 +127,19 @@ export function useAgentRun(tabId: string) {
     ) {
       return;
     }
+    if (options.sourceTask) {
+      useWorkbenchStore.getState().patchTab(tabId, {
+        goal: trimmedGoal,
+        sourceTask,
+      });
+    }
     const runId = crypto.randomUUID();
     const store = useWorkbenchStore.getState();
     store.beginRun(tabId, runId);
-    if (options.sourceTask) {
+    if (sourceTask) {
       store.dispatchRunEvent(runId, {
         type: "diagnostic",
-        message: sourceTaskRunMessage(options.sourceTask, Boolean(options.allowBlockedTask)),
+        message: sourceTaskRunMessage(options.sourceTask ?? sourceTask, Boolean(options.allowBlockedTask)),
       });
     }
 
@@ -229,7 +237,7 @@ export function useAgentRun(tabId: string) {
       const trimmed = body.trim();
       if (!current || !trimmed) return;
       if (!current.sessionActive) {
-        store.patchTab(tabId, { goal: trimmed });
+        store.patchTab(tabId, { goal: trimmed, sourceTask: null });
         return;
       }
       if (runMode === "insert") {
@@ -250,7 +258,15 @@ export function useAgentRun(tabId: string) {
     (value: string) => patch({ selectedAgentId: value }),
     [patch],
   );
-  const setGoal = useCallback((value: string) => patch({ goal: value }), [patch]);
+  const setGoal = useCallback((value: string) => patch({ goal: value, sourceTask: null }), [patch]);
+  const setGoalFromTask = useCallback(
+    (value: string, task?: LocalTaskSummary) =>
+      patch({
+        goal: value,
+        sourceTask: task ? localTaskRunSource(task) : null,
+      }),
+    [patch],
+  );
   const setCwd = useCallback((value: string) => patch({ cwd: value }), [patch]);
   const setCustomCommand = useCallback(
     (value: string) => patch({ customCommand: value }),
@@ -301,6 +317,7 @@ export function useAgentRun(tabId: string) {
     setSelectedAgentId,
     goal: tab?.goal ?? "",
     setGoal,
+    setGoalFromTask,
     cwd: tab?.cwd ?? "",
     setCwd,
     customCommand: tab?.customCommand ?? "",
@@ -320,6 +337,7 @@ export function useAgentRun(tabId: string) {
     setIdleTimeoutSec,
     idleRemainingSec: tab?.idleRemainingSec ?? null,
     activeRunId: tab?.activeRunId ?? null,
+    sourceTask: tab?.sourceTask ?? null,
     sessionActive: tab?.sessionActive ?? false,
     awaitingResponse: tab?.awaitingResponse ?? false,
     isRunning: tab?.sessionActive ?? false,
@@ -340,14 +358,24 @@ export function useAgentRun(tabId: string) {
   };
 }
 
-function sourceTaskRunMessage(task: LocalTaskSummary, allowBlockedTask: boolean) {
+function sourceTaskRunMessage(
+  task: {
+    id: string;
+    title: string;
+    status?: string | null;
+    priority?: string | null;
+    blocked: boolean;
+    dependencies?: string[];
+  },
+  allowBlockedTask: boolean,
+) {
   const parts = [`Source task ${task.id}: ${task.title}`];
   if (task.status) parts.push(`status ${task.status}`);
   if (task.priority) parts.push(`priority ${task.priority}`);
   if (task.blocked) {
     parts.push(allowBlockedTask ? "blocked override approved" : "blocked");
   }
-  if (task.dependencies.length > 0) {
+  if (task.dependencies?.length) {
     parts.push(`dependencies ${task.dependencies.join(", ")}`);
   }
   return parts.join(" | ");

@@ -99,6 +99,7 @@ describe("agent-run api", () => {
       items: [],
       filter: "all",
       error: null,
+      sourceTask: null,
       unreadCount: 0,
       permissionPending: false,
       closing: false,

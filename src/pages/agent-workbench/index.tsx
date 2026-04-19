@@ -40,7 +40,7 @@ export function AgentWorkbenchPage() {
         workspaceId={state.workspaceId}
         checkoutId={state.checkoutId}
         sessionActive={state.sessionActive}
-        onApplyTaskGoal={state.setGoal}
+        onApplyTaskGoal={state.setGoalFromTask}
         onRunTaskGoal={(goal, task, allowBlockedTask) =>
           void state.run({ goal, sourceTask: task, allowBlockedTask })
         }
@@ -87,6 +87,7 @@ export function AgentWorkbenchPage() {
             idleRemainingSec={state.idleRemainingSec}
             isRunning={state.isRunning}
             activeRunId={state.activeRunId}
+            sourceTask={state.sourceTask}
             onRun={state.run}
             onCancel={state.cancel}
           />
