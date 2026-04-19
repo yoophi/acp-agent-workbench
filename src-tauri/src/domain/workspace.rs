@@ -88,6 +88,24 @@ impl WorkspaceCheckout {
             is_default,
         }
     }
+
+    pub fn new_worktree(
+        workspace_id: WorkspaceId,
+        canonical_origin: &str,
+        path: PathBuf,
+        branch: Option<String>,
+        head_sha: Option<String>,
+    ) -> Self {
+        Self {
+            id: checkout_id(canonical_origin, &path),
+            workspace_id,
+            path,
+            kind: CheckoutKind::Worktree,
+            branch,
+            head_sha,
+            is_default: false,
+        }
+    }
 }
 
 pub fn workspace_id(canonical_origin: &str) -> WorkspaceId {

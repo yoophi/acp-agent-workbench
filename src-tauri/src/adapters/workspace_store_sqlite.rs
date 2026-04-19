@@ -136,6 +136,13 @@ impl WorkspaceStore for SqliteWorkspaceStore {
         Ok(())
     }
 
+    async fn save_checkout(&self, checkout: WorkspaceCheckout) -> Result<WorkspaceCheckout> {
+        let mut tx = self.pool.begin().await?;
+        upsert_checkout(&mut tx, &checkout).await?;
+        tx.commit().await?;
+        Ok(checkout)
+    }
+
     async fn refresh_checkout(
         &self,
         checkout_id: &CheckoutId,

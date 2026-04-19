@@ -13,6 +13,7 @@ import {
   getWorkspaceGitStatus,
   listenRunEvents,
   pushWorkspaceBranch,
+  provisionWorkspaceTaskWorktree,
   sendPromptToRun,
   startAgentRun,
   summarizeWorkspaceDiff,
@@ -124,6 +125,31 @@ describe("agent-run api", () => {
     });
     expect(mockedInvoke).toHaveBeenNthCalledWith(3, "create_github_pull_request", {
       request: pullRequestRequest,
+    });
+  });
+
+  it("provisionWorkspaceTaskWorktree forwards workspace task isolation args", async () => {
+    mockedInvoke.mockResolvedValueOnce({
+      id: "checkout-worktree",
+      workspaceId: "workspace-1",
+      path: "/repo/acp-agent-workbench-issue-63",
+      branch: "worktree/issue-63",
+      headSha: "abc123",
+      kind: "worktree",
+      isDefault: false,
+    });
+
+    const checkout = await provisionWorkspaceTaskWorktree({
+      workspaceId: "workspace-1",
+      checkoutId: "checkout-main",
+      taskSlug: "Issue #63",
+    });
+
+    expect(checkout.kind).toBe("worktree");
+    expect(mockedInvoke).toHaveBeenCalledWith("provision_workspace_task_worktree", {
+      workspaceId: "workspace-1",
+      checkoutId: "checkout-main",
+      taskSlug: "Issue #63",
     });
   });
 });

@@ -2,7 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo } from "react";
 import {
   cancelAgentRun,
+  listWorkspaceCheckouts,
   listAgents,
+  provisionWorkspaceTaskWorktree,
   startAgentRun,
 } from "./api";
 import type {
@@ -74,7 +76,7 @@ export function useAgentRun(tabId: string) {
     ).length;
     if (
       sameWorkdirRuns > 0 &&
-      current.workspaceId &&
+      !current.workspaceId &&
       !window.confirm(
         `There ${sameWorkdirRuns === 1 ? "is" : "are"} ${sameWorkdirRuns} active run${
           sameWorkdirRuns === 1 ? "" : "s"
@@ -86,13 +88,16 @@ export function useAgentRun(tabId: string) {
     const runId = crypto.randomUUID();
     useWorkbenchStore.getState().beginRun(tabId, runId);
 
+    let checkoutId = current.checkoutId ?? undefined;
+    let cwd = current.cwd.trim() || undefined;
+
     const request: AgentRunRequest = {
       runId,
       goal: trimmedGoal,
       agentId: current.selectedAgentId,
       workspaceId: current.workspaceId ?? undefined,
-      checkoutId: current.checkoutId ?? undefined,
-      cwd: current.cwd.trim() || undefined,
+      checkoutId,
+      cwd,
       agentCommand: current.customCommand.trim() || undefined,
       stdioBufferLimitMb: Math.min(512, Math.max(1, current.stdioBufferLimitMb || 50)),
       autoAllow: current.autoAllow,
@@ -101,6 +106,23 @@ export function useAgentRun(tabId: string) {
     };
 
     try {
+      if (current.workspaceId) {
+        const worktree = await provisionWorkspaceTaskWorktree({
+          workspaceId: current.workspaceId,
+          checkoutId,
+          taskSlug: trimmedGoal,
+        });
+        checkoutId = worktree.id;
+        cwd = undefined;
+        request.checkoutId = checkoutId;
+        request.cwd = cwd;
+
+        const store = useWorkbenchStore.getState();
+        store.setTabWorkspace(tabId, current.workspaceId, checkoutId);
+        store.patchTab(tabId, { cwd: "" });
+        const checkouts = await listWorkspaceCheckouts(current.workspaceId);
+        store.setWorkspaceCheckouts(current.workspaceId, checkouts);
+      }
       await startAgentRun(request);
     } catch (err) {
       const error = String(err);

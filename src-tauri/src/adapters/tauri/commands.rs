@@ -15,6 +15,7 @@ use crate::{
         load_goal_file::LoadGoalFileUseCase, resolve_workdir::ResolveWorkdirUseCase,
         respond_permission::RespondPermissionUseCase, send_prompt::SendPromptUseCase,
         start_agent_run::StartAgentRunUseCase, workspace_git::WorkspaceGitUseCase,
+        workspace_worktree::WorkspaceTaskWorktreeUseCase,
     },
     domain::{
         acp_session::AcpSessionLookup,
@@ -333,6 +334,19 @@ pub async fn push_workspace_branch(
 ) -> Result<WorkspacePushResult, String> {
     WorkspaceGitUseCase::new(storage.workspace_store(), LocalGitRepository)
         .push(request)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn provision_workspace_task_worktree(
+    storage: State<'_, StorageState>,
+    workspace_id: String,
+    checkout_id: Option<String>,
+    task_slug: Option<String>,
+) -> Result<WorkspaceCheckout, String> {
+    WorkspaceTaskWorktreeUseCase::new(storage.workspace_store(), LocalGitRepository)
+        .provision(&workspace_id, checkout_id.as_deref(), task_slug.as_deref())
         .await
         .map_err(|err| err.to_string())
 }

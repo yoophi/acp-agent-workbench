@@ -180,6 +180,16 @@ impl WorkspaceStore for LocalWorkspaceStore {
         self.write_file_unlocked(&file)
     }
 
+    async fn save_checkout(&self, checkout: WorkspaceCheckout) -> Result<WorkspaceCheckout> {
+        let _guard = self.lock.lock().await;
+        let mut file = self.read_file_unlocked()?;
+        upsert_by_id(&mut file.checkouts, checkout.clone(), |entry| {
+            entry.id.clone()
+        });
+        self.write_file_unlocked(&file)?;
+        Ok(checkout)
+    }
+
     async fn refresh_checkout(
         &self,
         checkout_id: &CheckoutId,

@@ -23,6 +23,11 @@ pub trait WorkspaceStore: Clone + Send + Sync + 'static {
         workspace_id: &WorkspaceId,
     ) -> impl Future<Output = Result<()>> + Send;
 
+    fn save_checkout(
+        &self,
+        checkout: WorkspaceCheckout,
+    ) -> impl Future<Output = Result<WorkspaceCheckout>> + Send;
+
     fn refresh_checkout(
         &self,
         checkout_id: &CheckoutId,

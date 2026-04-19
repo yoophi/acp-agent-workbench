@@ -127,6 +127,20 @@ impl GitRepositoryPort for LocalGitRepository {
             branch: branch.to_string(),
         })
     }
+
+    fn create_worktree(
+        &self,
+        source_workdir: &Path,
+        branch_name: &str,
+        worktree_path: &Path,
+    ) -> Result<WorkspaceGitStatus> {
+        let path_arg = worktree_path.to_string_lossy().to_string();
+        run_git_args(
+            source_workdir,
+            &["worktree", "add", "-b", branch_name, &path_arg, "HEAD"],
+        )?;
+        git_status(worktree_path)
+    }
 }
 
 pub fn parse_github_origin(raw_url: &str) -> Result<GitOrigin> {

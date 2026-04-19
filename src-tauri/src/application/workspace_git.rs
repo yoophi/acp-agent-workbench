@@ -180,6 +180,10 @@ mod tests {
             Ok(())
         }
 
+        async fn save_checkout(&self, checkout: WorkspaceCheckout) -> Result<WorkspaceCheckout> {
+            Ok(checkout)
+        }
+
         async fn refresh_checkout(
             &self,
             _checkout_id: &CheckoutId,
@@ -223,6 +227,15 @@ mod tests {
             _set_upstream: bool,
         ) -> Result<WorkspacePushResult> {
             panic!("confirmation should be checked before push")
+        }
+
+        fn create_worktree(
+            &self,
+            _source_workdir: &Path,
+            _branch_name: &str,
+            _worktree_path: &Path,
+        ) -> Result<WorkspaceGitStatus> {
+            panic!("confirmation should be checked before worktree provisioning")
         }
     }
 

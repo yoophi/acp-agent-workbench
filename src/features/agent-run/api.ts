@@ -80,6 +80,14 @@ export function createGitHubPullRequest(request: GitHubPullRequestCreateRequest)
   return invokeCommand<GitHubPullRequestSummary>("create_github_pull_request", { request });
 }
 
+export function provisionWorkspaceTaskWorktree(args: {
+  workspaceId: string;
+  checkoutId?: string | null;
+  taskSlug?: string | null;
+}) {
+  return invokeCommand<WorkspaceCheckout>("provision_workspace_task_worktree", args);
+}
+
 export function listSavedPrompts(workspaceId?: string | null) {
   return invokeCommand<SavedPrompt[]>("list_saved_prompts", { workspaceId });
 }
