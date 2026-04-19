@@ -32,6 +32,7 @@ export type RegisteredWorkspace = {
 
 export type WorkspaceGitFileStatus = {
   path: string;
+  previousPath?: string | null;
   statusCode: string;
   statusLabel: string;
 };

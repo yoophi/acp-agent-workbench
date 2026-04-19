@@ -14,6 +14,7 @@ pub struct WorkspaceGitStatus {
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceGitFileStatus {
     pub path: String,
+    pub previous_path: Option<String>,
     pub status_code: String,
     pub status_label: String,
 }
