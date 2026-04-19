@@ -1,4 +1,5 @@
 import type { AgentDescriptor } from "../../entities/agent";
+import type { AcpSessionListQuery, AcpSessionRecord } from "../../entities/acp-session";
 import type { AgentRun, AgentRunRequest, RunEventEnvelope } from "../../entities/message";
 import type { CreateSavedPromptInput, SavedPrompt, UpdateSavedPromptPatch } from "../../entities/saved-prompt";
 import type {
@@ -34,6 +35,14 @@ export function sendPromptToRun(runId: string, prompt: string) {
 
 export function listenRunEvents(callback: (event: RunEventEnvelope) => void) {
   return listenEvent<RunEventEnvelope>("agent-run-event", callback);
+}
+
+export function listAcpSessions(query: AcpSessionListQuery) {
+  return invokeCommand<AcpSessionRecord[]>("list_acp_sessions", { query });
+}
+
+export function clearAcpSession(runId: string) {
+  return invokeCommand<boolean>("clear_acp_session", { runId });
 }
 
 export function listWorkspaces() {

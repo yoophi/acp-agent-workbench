@@ -4,7 +4,7 @@ use std::{future::Future, pin::Pin};
 
 use crate::{
     domain::{
-        acp_session::{AcpSessionLookup, AcpSessionRecord},
+        acp_session::{AcpSessionListQuery, AcpSessionLookup, AcpSessionRecord},
         workspace::timestamp,
     },
     ports::acp_session_store::AcpSessionStore,
@@ -62,6 +62,62 @@ impl AcpSessionStore for SqliteAcpSessionStore {
             row.map(session_from_row).transpose()
         })
     }
+
+    fn list_sessions<'a>(
+        &'a self,
+        query: AcpSessionListQuery,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<AcpSessionRecord>>> + Send + 'a>> {
+        Box::pin(async move { list_sessions(&self.pool, query).await })
+    }
+
+    fn clear_session<'a>(
+        &'a self,
+        run_id: String,
+    ) -> Pin<Box<dyn Future<Output = Result<bool>> + Send + 'a>> {
+        Box::pin(async move {
+            let result = sqlx::query("DELETE FROM acp_sessions WHERE run_id = ?")
+                .bind(run_id)
+                .execute(&self.pool)
+                .await?;
+            Ok(result.rows_affected() > 0)
+        })
+    }
+}
+
+async fn list_sessions(
+    pool: &SqlitePool,
+    query: AcpSessionListQuery,
+) -> Result<Vec<AcpSessionRecord>> {
+    let limit = i64::from(query.limit.unwrap_or(20).clamp(1, 100));
+    let rows = sqlx::query(
+        r#"
+        SELECT run_id, session_id, workspace_id, checkout_id, workdir,
+               agent_id, agent_command, task, created_at, updated_at
+        FROM acp_sessions
+        WHERE (? IS NULL OR workspace_id = ?)
+          AND (? IS NULL OR checkout_id = ?)
+          AND (? IS NULL OR workdir = ?)
+          AND (? IS NULL OR agent_id = ?)
+          AND (? IS NULL OR agent_command = ?)
+        ORDER BY updated_at DESC, run_id DESC
+        LIMIT ?
+        "#,
+    )
+    .bind(&query.workspace_id)
+    .bind(&query.workspace_id)
+    .bind(&query.checkout_id)
+    .bind(&query.checkout_id)
+    .bind(&query.workdir)
+    .bind(&query.workdir)
+    .bind(&query.agent_id)
+    .bind(&query.agent_id)
+    .bind(&query.agent_command)
+    .bind(&query.agent_command)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter().map(session_from_row).collect()
 }
 
 async fn upsert_session(pool: &SqlitePool, record: &AcpSessionRecord) -> Result<()> {
@@ -119,7 +175,7 @@ mod tests {
     use crate::{
         adapters::sqlite::open_database,
         domain::{
-            acp_session::{AcpSessionLookup, AcpSessionRecord},
+            acp_session::{AcpSessionListQuery, AcpSessionLookup, AcpSessionRecord},
             workspace::timestamp,
         },
         ports::acp_session_store::AcpSessionStore,
@@ -222,5 +278,56 @@ mod tests {
             .unwrap();
 
         assert_eq!(found, None);
+    }
+
+    #[tokio::test]
+    async fn lists_sessions_by_context_newest_first() {
+        let store = temp_store().await;
+        insert_workspace_fixture(&store).await;
+        store
+            .record_session(record("run-1", "session-1"))
+            .await
+            .unwrap();
+        store
+            .record_session(record("run-2", "session-2"))
+            .await
+            .unwrap();
+
+        let sessions = store
+            .list_sessions(AcpSessionListQuery {
+                workspace_id: Some("ws-1".into()),
+                checkout_id: Some("co-1".into()),
+                agent_id: Some("agent".into()),
+                limit: Some(10),
+                ..AcpSessionListQuery::default()
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(sessions.len(), 2);
+        assert_eq!(sessions[0].run_id, "run-2");
+        assert_eq!(sessions[1].run_id, "run-1");
+    }
+
+    #[tokio::test]
+    async fn clears_session_by_run_id() {
+        let store = temp_store().await;
+        insert_workspace_fixture(&store).await;
+        store
+            .record_session(record("run-1", "session-1"))
+            .await
+            .unwrap();
+
+        assert!(store.clear_session("run-1".into()).await.unwrap());
+        assert!(!store.clear_session("run-1".into()).await.unwrap());
+
+        let sessions = store
+            .list_sessions(AcpSessionListQuery {
+                workspace_id: Some("ws-1".into()),
+                ..AcpSessionListQuery::default()
+            })
+            .await
+            .unwrap();
+        assert!(sessions.is_empty());
     }
 }

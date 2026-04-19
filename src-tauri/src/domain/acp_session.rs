@@ -27,6 +27,17 @@ pub struct AcpSessionLookup {
     pub agent_command: Option<String>,
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AcpSessionListQuery {
+    pub workspace_id: Option<String>,
+    pub checkout_id: Option<String>,
+    pub workdir: Option<String>,
+    pub agent_id: Option<String>,
+    pub agent_command: Option<String>,
+    pub limit: Option<u32>,
+}
+
 impl AcpSessionRecord {
     pub fn from_request_with_agent_command(
         run_id: &str,
