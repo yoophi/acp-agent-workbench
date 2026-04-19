@@ -7,4 +7,6 @@ pub mod session_registry;
 pub mod sqlite;
 pub mod storage_state;
 pub mod tauri;
+#[allow(dead_code)]
 pub mod workspace_store;
+pub mod workspace_store_sqlite;

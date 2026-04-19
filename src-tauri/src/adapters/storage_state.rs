@@ -2,12 +2,12 @@ use anyhow::Result;
 use sqlx::SqlitePool;
 use std::path::PathBuf;
 
-use crate::adapters::sqlite::open_database;
+use crate::adapters::{sqlite::open_database, workspace_store_sqlite::SqliteWorkspaceStore};
 
 #[derive(Clone)]
-#[allow(dead_code)]
 pub struct StorageState {
     pool: SqlitePool,
+    #[allow(dead_code)]
     app_data_dir: PathBuf,
 }
 
@@ -17,7 +17,6 @@ impl StorageState {
         Ok(Self { pool, app_data_dir })
     }
 
-    #[allow(dead_code)]
     pub fn pool(&self) -> SqlitePool {
         self.pool.clone()
     }
@@ -25,5 +24,9 @@ impl StorageState {
     #[allow(dead_code)]
     pub fn app_data_dir(&self) -> PathBuf {
         self.app_data_dir.clone()
+    }
+
+    pub fn workspace_store(&self) -> SqliteWorkspaceStore {
+        SqliteWorkspaceStore::new(self.pool())
     }
 }
