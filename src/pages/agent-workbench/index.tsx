@@ -9,6 +9,7 @@ import { TabBar } from "../../widgets/workbench-tabs";
 import { WorkspaceBar } from "../../widgets/workspace-bar";
 import { WorkspaceGitPanel } from "../../widgets/workspace-git";
 import { WorkspacePrPublishPanel } from "../../widgets/workspace-pr-publish";
+import { WorkspacePrReviewPanel } from "../../widgets/workspace-pr-review";
 
 export function AgentWorkbenchPage() {
   const activeTabId = useActiveTabId();
@@ -35,6 +36,11 @@ export function AgentWorkbenchPage() {
       <WorkspaceBar tabId={activeTabId} disabled={state.sessionActive} />
       <WorkspaceGitPanel workspaceId={state.workspaceId} checkoutId={state.checkoutId} />
       <WorkspacePrPublishPanel workspaceId={state.workspaceId} checkoutId={state.checkoutId} />
+      <WorkspacePrReviewPanel
+        workspaceId={state.workspaceId}
+        checkoutId={state.checkoutId}
+        onApplyReviewGoal={state.setGoal}
+      />
       <TabBar />
 
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(360px,0.43fr)_minmax(520px,1fr)] items-stretch gap-4 max-lg:grid-cols-1">
