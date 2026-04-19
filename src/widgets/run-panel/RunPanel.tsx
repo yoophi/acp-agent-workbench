@@ -2,7 +2,7 @@ import { Octagon, Play, ShieldCheck, Trash2 } from "lucide-react";
 import type { AcpSessionRecord } from "../../entities/acp-session";
 import type { AgentDescriptor } from "../../entities/agent";
 import type { RalphLoopSettings, ResumePolicy } from "../../entities/message";
-import type { LocalTaskRunSource } from "../../features/agent-run";
+import { RUN_SCENARIOS, type LocalTaskRunSource, type RunScenarioId } from "../../features/agent-run";
 import { cn } from "../../shared/lib";
 import { Button, Card, CardContent, CardHeader, CardTitle, CardTitleBlock, Input, NativeSelect } from "../../shared/ui";
 
@@ -10,6 +10,8 @@ type RunPanelProps = {
   agents: AgentDescriptor[];
   selectedAgentId: string;
   onSelectAgent: (id: string) => void;
+  scenario: RunScenarioId;
+  onScenarioChange: (id: RunScenarioId) => void;
   selectedAgent?: AgentDescriptor;
   cwd: string;
   onCwdChange: (value: string) => void;
@@ -40,6 +42,8 @@ export function RunPanel({
   agents,
   selectedAgentId,
   onSelectAgent,
+  scenario,
+  onScenarioChange,
   selectedAgent,
   cwd,
   onCwdChange,
@@ -91,6 +95,24 @@ export function RunPanel({
               </option>
             ))}
           </NativeSelect>
+        </label>
+
+        <label className="grid gap-2">
+          <span className="text-sm font-medium">Scenario</span>
+          <NativeSelect
+            value={scenario}
+            onChange={(event) => onScenarioChange(event.target.value as RunScenarioId)}
+            disabled={isRunning}
+          >
+            {RUN_SCENARIOS.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </NativeSelect>
+          <span className="text-xs leading-relaxed text-muted-foreground">
+            {RUN_SCENARIOS.find((option) => option.id === scenario)?.description}
+          </span>
         </label>
 
         <label className="grid gap-2">

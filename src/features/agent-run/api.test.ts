@@ -76,6 +76,7 @@ describe("agent-run api", () => {
       workspaceId: "workspace-1",
       checkoutId: "checkout-1",
       selectedAgentId: "codex",
+      scenario: "default",
       goal: "review the diff",
       cwd: "/repo",
       customCommand: "",
