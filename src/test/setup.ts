@@ -1,5 +1,7 @@
 import { beforeEach, vi } from "vitest";
 
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
 // Provide crypto.randomUUID() in the jsdom environment where it is
 // absent by default. Feature code calls it when allocating run ids and
 // queue item ids, and the real implementation is deterministic enough
