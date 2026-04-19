@@ -11,6 +11,48 @@ export type FollowUpQueueItem = {
   createdAt: number;
 };
 
+export type AgentRunDraft = {
+  selectedAgentId: string;
+  goal: string;
+  customCommand: string;
+  stdioBufferLimitMb: number;
+  autoAllow: boolean;
+  idleTimeoutSec: number;
+};
+
+export type WorkspaceViewState = {
+  id: string;
+  title: string;
+  workspaceId: string | null;
+  checkoutId: string | null;
+  cwd: string;
+  activeRunId: string | null;
+  draft: AgentRunDraft;
+  followUpDraft: string;
+  filter: EventGroup | "all";
+  viewError: string | null;
+  unreadCount: number;
+  closing: boolean;
+};
+
+export type AgentRunState = {
+  id: string;
+  workspaceViewId: string;
+  workspaceId: string | null;
+  checkoutId: string | null;
+  cwd: string;
+  request: AgentRunDraft;
+  sessionActive: boolean;
+  awaitingResponse: boolean;
+  idleRemainingSec: number | null;
+  permissionPending: boolean;
+  followUpQueue: FollowUpQueueItem[];
+  items: TimelineItem[];
+  runError: string | null;
+  createdAt: number;
+  completedAt: number | null;
+};
+
 export type TabState = {
   id: string;
   title: string;
@@ -41,6 +83,9 @@ type WorkbenchState = {
   workspaces: Workspace[];
   checkoutsByWorkspaceId: Record<string, WorkspaceCheckout[]>;
   workspaceError: string | null;
+  workspaceViews: WorkspaceViewState[];
+  runsById: Record<string, AgentRunState>;
+  activeWorkspaceViewId: string;
   tabs: TabState[];
   activeTabId: string;
   setWorkspaces: (workspaces: Workspace[]) => void;
@@ -101,8 +146,71 @@ export function createTabState(preset: Partial<TabState> = {}, index = 0): TabSt
   };
 }
 
+function tabToDraft(tab: TabState): AgentRunDraft {
+  return {
+    selectedAgentId: tab.selectedAgentId,
+    goal: tab.goal,
+    customCommand: tab.customCommand,
+    stdioBufferLimitMb: tab.stdioBufferLimitMb,
+    autoAllow: tab.autoAllow,
+    idleTimeoutSec: tab.idleTimeoutSec,
+  };
+}
+
+export function createWorkspaceViewState(
+  preset: Partial<TabState> = {},
+  index = 0,
+): WorkspaceViewState {
+  return tabToWorkspaceView(createTabState(preset, index));
+}
+
+function tabToWorkspaceView(tab: TabState): WorkspaceViewState {
+  return {
+    id: tab.id,
+    title: tab.title,
+    workspaceId: tab.workspaceId,
+    checkoutId: tab.checkoutId,
+    cwd: tab.cwd,
+    activeRunId: tab.activeRunId,
+    draft: tabToDraft(tab),
+    followUpDraft: tab.followUpDraft,
+    filter: tab.filter,
+    viewError: tab.error,
+    unreadCount: tab.unreadCount,
+    closing: tab.closing,
+  };
+}
+
+function runStateFromTab(tab: TabState, runId: string): AgentRunState {
+  return {
+    id: runId,
+    workspaceViewId: tab.id,
+    workspaceId: tab.workspaceId,
+    checkoutId: tab.checkoutId,
+    cwd: tab.cwd,
+    request: tabToDraft(tab),
+    sessionActive: true,
+    awaitingResponse: true,
+    idleRemainingSec: null,
+    permissionPending: false,
+    followUpQueue: [],
+    items: [],
+    runError: null,
+    createdAt: Date.now(),
+    completedAt: null,
+  };
+}
+
 function replaceTab(tabs: TabState[], tabId: string, updater: (tab: TabState) => TabState) {
   return tabs.map((tab) => (tab.id === tabId ? updater(tab) : tab));
+}
+
+function replaceWorkspaceView(
+  views: WorkspaceViewState[],
+  viewId: string,
+  updater: (view: WorkspaceViewState) => WorkspaceViewState,
+) {
+  return views.map((view) => (view.id === viewId ? updater(view) : view));
 }
 
 function mergeStreamedText(items: TimelineItem[], item: TimelineItem): TimelineItem[] {
@@ -127,11 +235,15 @@ function mergeStreamedText(items: TimelineItem[], item: TimelineItem): TimelineI
 }
 
 const initialTab = createTabState({}, 0);
+const initialWorkspaceView = tabToWorkspaceView(initialTab);
 
 export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
   workspaces: [],
   checkoutsByWorkspaceId: {},
   workspaceError: null,
+  workspaceViews: [initialWorkspaceView],
+  runsById: {},
+  activeWorkspaceViewId: initialWorkspaceView.id,
   tabs: [initialTab],
   activeTabId: initialTab.id,
 
@@ -184,7 +296,13 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
       },
       state.tabs.length,
     );
-    set({ tabs: [...state.tabs, tab], activeTabId: tab.id });
+    const workspaceView = tabToWorkspaceView(tab);
+    set({
+      tabs: [...state.tabs, tab],
+      activeTabId: tab.id,
+      workspaceViews: [...state.workspaceViews, workspaceView],
+      activeWorkspaceViewId: workspaceView.id,
+    });
     return tab.id;
   },
 
@@ -196,13 +314,23 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
     if (target.sessionActive && target.activeRunId) {
       set({
         tabs: replaceTab(state.tabs, tabId, (tab) => ({ ...tab, closing: true })),
+        workspaceViews: replaceWorkspaceView(state.workspaceViews, tabId, (view) => ({
+          ...view,
+          closing: true,
+        })),
       });
       return state.activeTabId;
     }
 
     if (state.tabs.length <= 1) {
       const replacement = createTabState({}, 0);
-      set({ tabs: [replacement], activeTabId: replacement.id });
+      const replacementView = tabToWorkspaceView(replacement);
+      set({
+        tabs: [replacement],
+        activeTabId: replacement.id,
+        workspaceViews: [replacementView],
+        activeWorkspaceViewId: replacementView.id,
+      });
       return replacement.id;
     }
     const index = state.tabs.findIndex((t) => t.id === tabId);
@@ -212,7 +340,12 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
       const neighbor = remaining[index] ?? remaining[index - 1] ?? remaining[0];
       nextActive = neighbor.id;
     }
-    set({ tabs: remaining, activeTabId: nextActive });
+    set({
+      tabs: remaining,
+      activeTabId: nextActive,
+      workspaceViews: state.workspaceViews.filter((view) => view.id !== tabId),
+      activeWorkspaceViewId: nextActive,
+    });
     return nextActive;
   },
 
@@ -221,7 +354,13 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
     if (!state.tabs.some((t) => t.id === tabId)) return state.activeTabId;
     if (state.tabs.length <= 1) {
       const replacement = createTabState({}, 0);
-      set({ tabs: [replacement], activeTabId: replacement.id });
+      const replacementView = tabToWorkspaceView(replacement);
+      set({
+        tabs: [replacement],
+        activeTabId: replacement.id,
+        workspaceViews: [replacementView],
+        activeWorkspaceViewId: replacementView.id,
+      });
       return replacement.id;
     }
     const index = state.tabs.findIndex((t) => t.id === tabId);
@@ -231,7 +370,12 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
       const neighbor = remaining[index] ?? remaining[index - 1] ?? remaining[0];
       nextActive = neighbor.id;
     }
-    set({ tabs: remaining, activeTabId: nextActive });
+    set({
+      tabs: remaining,
+      activeTabId: nextActive,
+      workspaceViews: state.workspaceViews.filter((view) => view.id !== tabId),
+      activeWorkspaceViewId: nextActive,
+    });
     return nextActive;
   },
 
@@ -240,8 +384,13 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
       if (!state.tabs.some((t) => t.id === tabId)) return state;
       return {
         activeTabId: tabId,
+        activeWorkspaceViewId: tabId,
         tabs: replaceTab(state.tabs, tabId, (tab) => ({
           ...tab,
+          unreadCount: 0,
+        })),
+        workspaceViews: replaceWorkspaceView(state.workspaceViews, tabId, (view) => ({
+          ...view,
           unreadCount: 0,
         })),
       };
@@ -250,11 +399,38 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
   renameTab: (tabId, title) =>
     set((state) => ({
       tabs: replaceTab(state.tabs, tabId, (tab) => ({ ...tab, title })),
+      workspaceViews: replaceWorkspaceView(state.workspaceViews, tabId, (view) => ({
+        ...view,
+        title,
+      })),
     })),
 
   patchTab: (tabId, patch) =>
     set((state) => ({
       tabs: replaceTab(state.tabs, tabId, (tab) => ({ ...tab, ...patch })),
+      workspaceViews: replaceWorkspaceView(state.workspaceViews, tabId, (view) => {
+        const next = { ...view };
+        if (patch.title !== undefined) next.title = patch.title;
+        if (patch.workspaceId !== undefined) next.workspaceId = patch.workspaceId;
+        if (patch.checkoutId !== undefined) next.checkoutId = patch.checkoutId;
+        if (patch.cwd !== undefined) next.cwd = patch.cwd;
+        if (patch.activeRunId !== undefined) next.activeRunId = patch.activeRunId;
+        if (patch.followUpDraft !== undefined) next.followUpDraft = patch.followUpDraft;
+        if (patch.filter !== undefined) next.filter = patch.filter;
+        if (patch.error !== undefined) next.viewError = patch.error;
+        if (patch.unreadCount !== undefined) next.unreadCount = patch.unreadCount;
+        if (patch.closing !== undefined) next.closing = patch.closing;
+        next.draft = {
+          ...next.draft,
+          selectedAgentId: patch.selectedAgentId ?? next.draft.selectedAgentId,
+          goal: patch.goal ?? next.draft.goal,
+          customCommand: patch.customCommand ?? next.draft.customCommand,
+          stdioBufferLimitMb: patch.stdioBufferLimitMb ?? next.draft.stdioBufferLimitMb,
+          autoAllow: patch.autoAllow ?? next.draft.autoAllow,
+          idleTimeoutSec: patch.idleTimeoutSec ?? next.draft.idleTimeoutSec,
+        };
+        return next;
+      }),
     })),
 
   setTabWorkspace: (tabId, workspaceId, checkoutId) =>
@@ -270,11 +446,30 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
           checkouts[0]?.id ??
           null;
         const checkout = checkouts.find((entry) => entry.id === selectedCheckout);
+        const nextCwd = checkout?.path ?? tab.cwd;
         return {
           ...tab,
           workspaceId: nextWorkspaceId,
           checkoutId: selectedCheckout,
-          cwd: checkout?.path ?? tab.cwd,
+          cwd: nextCwd,
+        };
+      }),
+      workspaceViews: replaceWorkspaceView(state.workspaceViews, tabId, (view) => {
+        const nextWorkspaceId = workspaceId;
+        const checkouts = nextWorkspaceId
+          ? (state.checkoutsByWorkspaceId[nextWorkspaceId] ?? [])
+          : [];
+        const selectedCheckout =
+          checkoutId ??
+          checkouts.find((entry) => entry.isDefault)?.id ??
+          checkouts[0]?.id ??
+          null;
+        const checkout = checkouts.find((entry) => entry.id === selectedCheckout);
+        return {
+          ...view,
+          workspaceId: nextWorkspaceId,
+          checkoutId: selectedCheckout,
+          cwd: checkout?.path ?? view.cwd,
         };
       }),
     })),
@@ -282,26 +477,42 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
   setTabWorkdir: (tabId, workdir) =>
     set((state) => ({
       tabs: replaceTab(state.tabs, tabId, (tab) => ({ ...tab, cwd: workdir })),
+      workspaceViews: replaceWorkspaceView(state.workspaceViews, tabId, (view) => ({
+        ...view,
+        cwd: workdir,
+      })),
     })),
 
   enqueueFollowUp: (tabId, text) =>
-    set((state) => ({
-      tabs: replaceTab(state.tabs, tabId, (tab) => {
-        if (!tab.activeRunId) return tab;
-        return {
-          ...tab,
-          followUpQueue: [
-            ...tab.followUpQueue,
-            {
-              id: createId("q"),
-              runId: tab.activeRunId,
-              text,
-              createdAt: Date.now(),
-            },
-          ],
-        };
-      }),
-    })),
+    set((state) => {
+      const tab = state.tabs.find((entry) => entry.id === tabId);
+      if (!tab?.activeRunId) return state;
+      const item = {
+        id: createId("q"),
+        runId: tab.activeRunId,
+        text,
+        createdAt: Date.now(),
+      };
+      const run = state.runsById[tab.activeRunId];
+      return {
+        tabs: replaceTab(state.tabs, tabId, (tab) => {
+          if (!tab.activeRunId) return tab;
+          return {
+            ...tab,
+            followUpQueue: [...tab.followUpQueue, item],
+          };
+        }),
+        runsById: run
+          ? {
+              ...state.runsById,
+              [run.id]: {
+                ...run,
+                followUpQueue: [...run.followUpQueue, item],
+              },
+            }
+          : state.runsById,
+      };
+    }),
 
   removeFollowUp: (tabId, id) =>
     set((state) => ({
@@ -309,15 +520,41 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         ...tab,
         followUpQueue: tab.followUpQueue.filter((entry) => entry.id !== id),
       })),
+      runsById: (() => {
+        const tab = state.tabs.find((entry) => entry.id === tabId);
+        if (!tab?.activeRunId) return state.runsById;
+        const run = state.runsById[tab.activeRunId];
+        if (!run) return state.runsById;
+        return {
+          ...state.runsById,
+          [run.id]: {
+            ...run,
+            followUpQueue: run.followUpQueue.filter((entry) => entry.id !== id),
+          },
+        };
+      })(),
     })),
 
   dequeueFollowUp: (tabId) => {
     const tab = get().tabs.find((t) => t.id === tabId);
     const [next, ...rest] = tab?.followUpQueue ?? [];
     if (!next) return undefined;
-    set((state) => ({
-      tabs: replaceTab(state.tabs, tabId, (t) => ({ ...t, followUpQueue: rest })),
-    }));
+    set((state) => {
+      const current = state.tabs.find((t) => t.id === tabId);
+      const run = current?.activeRunId ? state.runsById[current.activeRunId] : undefined;
+      return {
+        tabs: replaceTab(state.tabs, tabId, (t) => ({ ...t, followUpQueue: rest })),
+        runsById: run
+          ? {
+              ...state.runsById,
+              [run.id]: {
+                ...run,
+                followUpQueue: rest,
+              },
+            }
+          : state.runsById,
+      };
+    });
     return next;
   },
 
@@ -327,25 +564,54 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         ...tab,
         items: mergeStreamedText(tab.items, item),
       })),
+      runsById: (() => {
+        const tab = state.tabs.find((entry) => entry.id === tabId);
+        if (!tab?.activeRunId) return state.runsById;
+        const run = state.runsById[tab.activeRunId];
+        if (!run) return state.runsById;
+        return {
+          ...state.runsById,
+          [run.id]: {
+            ...run,
+            items: mergeStreamedText(run.items, item),
+          },
+        };
+      })(),
     })),
 
   beginRun: (tabId, runId) =>
-    set((state) => ({
-      tabs: replaceTab(state.tabs, tabId, (tab) => ({
-        ...tab,
-        activeRunId: runId,
-        sessionActive: true,
-        awaitingResponse: true,
-        followUpDraft: "",
-        followUpQueue: [],
-        idleRemainingSec: null,
-        items: [],
-        error: null,
-        unreadCount: 0,
-        permissionPending: false,
-        closing: false,
-      })),
-    })),
+    set((state) => {
+      const tab = state.tabs.find((entry) => entry.id === tabId);
+      if (!tab) return state;
+      return {
+        tabs: replaceTab(state.tabs, tabId, (tab) => ({
+          ...tab,
+          activeRunId: runId,
+          sessionActive: true,
+          awaitingResponse: true,
+          followUpDraft: "",
+          followUpQueue: [],
+          idleRemainingSec: null,
+          items: [],
+          error: null,
+          unreadCount: 0,
+          permissionPending: false,
+          closing: false,
+        })),
+        workspaceViews: replaceWorkspaceView(state.workspaceViews, tabId, (view) => ({
+          ...view,
+          activeRunId: runId,
+          followUpDraft: "",
+          viewError: null,
+          unreadCount: 0,
+          closing: false,
+        })),
+        runsById: {
+          ...state.runsById,
+          [runId]: runStateFromTab(tab, runId),
+        },
+      };
+    }),
 
   endRun: (tabId) =>
     set((state) => ({
@@ -357,11 +623,33 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         idleRemainingSec: null,
         permissionPending: false,
       })),
+      runsById: (() => {
+        const tab = state.tabs.find((entry) => entry.id === tabId);
+        if (!tab?.activeRunId) return state.runsById;
+        const run = state.runsById[tab.activeRunId];
+        if (!run) return state.runsById;
+        return {
+          ...state.runsById,
+          [run.id]: {
+            ...run,
+            sessionActive: false,
+            awaitingResponse: false,
+            followUpQueue: [],
+            idleRemainingSec: null,
+            permissionPending: false,
+            completedAt: run.completedAt ?? Date.now(),
+          },
+        };
+      })(),
     })),
 
   markClosing: (tabId) =>
     set((state) => ({
       tabs: replaceTab(state.tabs, tabId, (tab) => ({ ...tab, closing: true })),
+      workspaceViews: replaceWorkspaceView(state.workspaceViews, tabId, (view) => ({
+        ...view,
+        closing: true,
+      })),
     })),
 
   dispatchRunEvent: (runId, event) => {
@@ -418,6 +706,59 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
           unreadCount: nextUnread,
         };
       }),
+      workspaceViews: replaceWorkspaceView(current.workspaceViews, tab.id, (view) => ({
+        ...view,
+        viewError: event.type === "error" ? event.message : view.viewError,
+        unreadCount: isActive ? view.unreadCount : view.unreadCount + 1,
+      })),
+      runsById: (() => {
+        const run = current.runsById[runId];
+        if (!run) return current.runsById;
+        let awaitingResponse = run.awaitingResponse;
+        let sessionActive = run.sessionActive;
+        let runError = run.runError;
+        let permissionPending = run.permissionPending;
+        let idleRemainingSec = run.idleRemainingSec;
+        let completedAt = run.completedAt;
+
+        if (event.type === "lifecycle") {
+          if (event.status === "promptSent") {
+            awaitingResponse = true;
+            idleRemainingSec = null;
+          } else if (event.status === "promptCompleted") {
+            awaitingResponse = false;
+          } else if (event.status === "completed" || event.status === "cancelled") {
+            sessionActive = false;
+            awaitingResponse = false;
+            idleRemainingSec = null;
+            permissionPending = false;
+            completedAt = completedAt ?? Date.now();
+          }
+        } else if (event.type === "error") {
+          sessionActive = false;
+          awaitingResponse = false;
+          idleRemainingSec = null;
+          runError = event.message;
+          permissionPending = false;
+          completedAt = completedAt ?? Date.now();
+        } else if (event.type === "permission") {
+          permissionPending = event.requiresResponse;
+        }
+
+        return {
+          ...current.runsById,
+          [runId]: {
+            ...run,
+            items: mergeStreamedText(run.items, item),
+            awaitingResponse,
+            sessionActive,
+            runError,
+            permissionPending,
+            idleRemainingSec,
+            completedAt,
+          },
+        };
+      })(),
     }));
 
     if (terminal && tab.closing) {
@@ -426,7 +767,13 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
       if (!target) return;
       if (after.tabs.length <= 1) {
         const replacement = createTabState({}, 0);
-        set({ tabs: [replacement], activeTabId: replacement.id });
+        const replacementView = tabToWorkspaceView(replacement);
+        set({
+          tabs: [replacement],
+          activeTabId: replacement.id,
+          workspaceViews: [replacementView],
+          activeWorkspaceViewId: replacementView.id,
+        });
         return;
       }
       const index = after.tabs.findIndex((t) => t.id === tab.id);
@@ -436,13 +783,48 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         const neighbor = remaining[index] ?? remaining[index - 1] ?? remaining[0];
         nextActive = neighbor.id;
       }
-      set({ tabs: remaining, activeTabId: nextActive });
+      set({
+        tabs: remaining,
+        activeTabId: nextActive,
+        workspaceViews: after.workspaceViews.filter((view) => view.id !== tab.id),
+        activeWorkspaceViewId: nextActive,
+      });
     }
   },
 }));
 
 export function selectTab(state: WorkbenchState, tabId: string): TabState | undefined {
   return state.tabs.find((t) => t.id === tabId);
+}
+
+export function selectWorkspaceView(
+  state: WorkbenchState,
+  workspaceViewId: string,
+): WorkspaceViewState | undefined {
+  return state.workspaceViews.find((view) => view.id === workspaceViewId);
+}
+
+export function selectActiveWorkspaceView(state: WorkbenchState): WorkspaceViewState | undefined {
+  return selectWorkspaceView(state, state.activeWorkspaceViewId);
+}
+
+export function selectRun(state: WorkbenchState, runId: string): AgentRunState | undefined {
+  return state.runsById[runId];
+}
+
+export function selectActiveRun(
+  state: WorkbenchState,
+  workspaceViewId: string,
+): AgentRunState | undefined {
+  const view = selectWorkspaceView(state, workspaceViewId);
+  return view?.activeRunId ? selectRun(state, view.activeRunId) : undefined;
+}
+
+export function selectWorkspaceViewRuns(
+  state: WorkbenchState,
+  workspaceViewId: string,
+): AgentRunState[] {
+  return Object.values(state.runsById).filter((run) => run.workspaceViewId === workspaceViewId);
 }
 
 function upsertItem<T>(items: T[], item: T, getId: (item: T) => string): T[] {
