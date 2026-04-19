@@ -17,12 +17,16 @@ use adapters::{
         record_saved_prompt_used, refresh_workspace_checkout, register_workspace_from_path,
         remove_workspace, resolve_workspace_workdir, respond_agent_permission, send_prompt_to_run,
         start_agent_run, submit_github_pull_request_review, summarize_workspace_diff,
-        update_pull_request_review_draft, update_saved_prompt,
+        transfer_run_owner, update_pull_request_review_draft, update_saved_prompt,
     },
 };
+use ports::session_registry::SessionRegistry;
 use tauri::Manager;
 
 pub fn run() {
+    let app_state = AppState::default();
+    let cleanup_state = app_state.clone();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
@@ -31,7 +35,18 @@ pub fn run() {
             app.manage(storage);
             Ok(())
         })
-        .manage(AppState::default())
+        .on_window_event(move |window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                let label = window.label().to_string();
+                let state = cleanup_state.clone();
+                tauri::async_runtime::spawn(async move {
+                    for run_id in state.runs_owned_by(&label).await {
+                        state.cancel_run(&run_id).await;
+                    }
+                });
+            }
+        })
+        .manage(app_state)
         .invoke_handler(tauri::generate_handler![
             list_agents,
             load_goal_file,
@@ -41,6 +56,7 @@ pub fn run() {
             start_agent_run,
             send_prompt_to_run,
             cancel_agent_run,
+            transfer_run_owner,
             respond_agent_permission,
             list_acp_sessions,
             clear_acp_session,

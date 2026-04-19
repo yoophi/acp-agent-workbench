@@ -47,6 +47,26 @@ impl AppState {
     pub async fn owner_of(&self, run_id: &str) -> Option<String> {
         self.run_owners.lock().await.get(run_id).cloned()
     }
+
+    pub async fn transfer_run_owner(&self, run_id: &str, owner_window_label: String) -> Result<()> {
+        if !self.runs.lock().await.contains_key(run_id) {
+            return Err(anyhow!("agent run not found: {run_id}"));
+        }
+        self.run_owners
+            .lock()
+            .await
+            .insert(run_id.to_string(), owner_window_label);
+        Ok(())
+    }
+
+    pub async fn runs_owned_by(&self, owner_window_label: &str) -> Vec<String> {
+        self.run_owners
+            .lock()
+            .await
+            .iter()
+            .filter_map(|(run_id, owner)| (owner == owner_window_label).then(|| run_id.clone()))
+            .collect()
+    }
 }
 
 enum RunSlot {

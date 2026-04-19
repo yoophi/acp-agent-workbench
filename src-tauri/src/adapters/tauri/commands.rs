@@ -240,6 +240,22 @@ pub async fn cancel_agent_run(
 }
 
 #[tauri::command]
+pub async fn transfer_run_owner(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    run_id: String,
+    owner_window_label: String,
+) -> Result<(), String> {
+    if app.get_webview_window(&owner_window_label).is_none() {
+        return Err(format!("workbench window not found: {owner_window_label}"));
+    }
+    state
+        .transfer_run_owner(&run_id, owner_window_label)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
 pub async fn respond_agent_permission(
     state: State<'_, AppState>,
     permission_id: String,
