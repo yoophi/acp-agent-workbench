@@ -1,6 +1,9 @@
-import { Octagon, Play, ShieldCheck } from "lucide-react";
+import { Octagon, Play, ShieldCheck, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { AcpSessionRecord } from "../../entities/acp-session";
 import type { AgentDescriptor } from "../../entities/agent";
 import type { RalphLoopSettings, ResumePolicy } from "../../entities/message";
+import { clearAcpSession, listAcpSessions } from "../../features/agent-run";
 import { cn } from "../../shared/lib";
 import { Button, Card, CardContent, CardHeader, CardTitle, CardTitleBlock, Input, NativeSelect } from "../../shared/ui";
 
@@ -9,6 +12,8 @@ type RunPanelProps = {
   selectedAgentId: string;
   onSelectAgent: (id: string) => void;
   selectedAgent?: AgentDescriptor;
+  workspaceId: string | null;
+  checkoutId: string | null;
   cwd: string;
   onCwdChange: (value: string) => void;
   customCommand: string;
@@ -35,6 +40,8 @@ export function RunPanel({
   selectedAgentId,
   onSelectAgent,
   selectedAgent,
+  workspaceId,
+  checkoutId,
   cwd,
   onCwdChange,
   customCommand,
@@ -55,6 +62,61 @@ export function RunPanel({
   onRun,
   onCancel,
 }: RunPanelProps) {
+  const [sessions, setSessions] = useState<AcpSessionRecord[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [clearingSession, setClearingSession] = useState(false);
+
+  const agentCommand = customCommand.trim() || selectedAgent?.command || null;
+  const latestSession = sessions[0] ?? null;
+  const sessionUpdatedAt = useMemo(
+    () => (latestSession ? new Date(latestSession.updatedAt).toLocaleString() : null),
+    [latestSession],
+  );
+
+  const refreshSessions = useCallback(async () => {
+    if (resumePolicy === "fresh" || !selectedAgentId) {
+      setSessions([]);
+      setSessionsError(null);
+      return;
+    }
+    setSessionsLoading(true);
+    setSessionsError(null);
+    try {
+      const next = await listAcpSessions({
+        workspaceId,
+        checkoutId,
+        agentId: selectedAgentId,
+        agentCommand,
+        limit: 1,
+      });
+      setSessions(next);
+    } catch (err) {
+      setSessionsError(String(err));
+      setSessions([]);
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, [agentCommand, checkoutId, resumePolicy, selectedAgentId, workspaceId]);
+
+  useEffect(() => {
+    void refreshSessions();
+  }, [refreshSessions]);
+
+  const clearLatestSession = useCallback(async () => {
+    if (!latestSession || clearingSession) return;
+    setClearingSession(true);
+    setSessionsError(null);
+    try {
+      await clearAcpSession(latestSession.runId);
+      await refreshSessions();
+    } catch (err) {
+      setSessionsError(String(err));
+    } finally {
+      setClearingSession(false);
+    }
+  }, [clearingSession, latestSession, refreshSessions]);
+
   return (
     <Card as="section" aria-labelledby="run-heading">
       <CardHeader>
@@ -142,6 +204,34 @@ export function RunPanel({
             <option value="resumeRequired">Require latest session</option>
           </NativeSelect>
         </label>
+
+        {resumePolicy !== "fresh" ? (
+          <div className="grid gap-2 rounded-lg border border-border bg-muted/25 p-3 text-sm">
+            {sessionsLoading ? (
+              <p className="text-muted-foreground">Checking persisted sessions...</p>
+            ) : latestSession ? (
+              <div className="grid gap-2">
+                <div className="grid gap-1">
+                  <p className="font-medium text-foreground">Latest session {latestSession.sessionId.slice(0, 8)}</p>
+                  <p className="truncate text-xs text-muted-foreground">{latestSession.task}</p>
+                  <p className="text-xs text-muted-foreground">{sessionUpdatedAt}</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon={<Trash2 size={15} />}
+                  disabled={isRunning || clearingSession}
+                  onClick={clearLatestSession}
+                >
+                  Clear latest session
+                </Button>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">No matching persisted session</p>
+            )}
+            {sessionsError ? <p className="text-xs font-medium text-destructive">{sessionsError}</p> : null}
+          </div>
+        ) : null}
 
         <div className="grid gap-3 rounded-lg border border-border bg-muted/25 p-3">
           <label className="flex items-center gap-2 text-sm font-medium">
