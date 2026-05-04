@@ -124,7 +124,8 @@ ACP_AGENT_CATALOG_PATH=/path/to/agents.json npm run tauri:dev
 ## 실행 옵션
 
 - `Agent`: 실행할 ACP 에이전트입니다.
-- `Workspace`: 에이전트 프로세스가 실행될 작업 디렉터리입니다. 비워 두면 `~/tmp/acp-tauri-agent-workspace`를 사용합니다.
+- `GitHub Repository`: GitHub origin이 연결된 git 저장소입니다. 등록하지 않으면 `Local Folder` 모드로 실행 디렉터리를 직접 사용합니다.
+- `Run Directory`: 에이전트 프로세스가 실행될 디렉터리입니다. 비워 두면 `~/tmp/acp-tauri-agent-workspace`를 사용합니다.
 - `Command override`: 선택한 에이전트의 기본 실행 명령 대신 사용할 명령입니다.
 - `Stdio buffer`: ACP stdout 읽기 버퍼 한도입니다. UI에서는 1MB부터 512MB까지 입력할 수 있습니다.
 - `Auto-select allow permission`: 에이전트가 권한 요청을 보낼 때 허용 옵션을 자동 선택합니다.

@@ -52,7 +52,7 @@ export function WorkspaceBar({ tabId, disabled = false }: WorkspaceBarProps) {
 
   const checkoutOptions = state.checkouts;
   const workdirPlaceholder = useMemo(
-    () => state.selectedCheckout?.path ?? "Select a workspace checkout",
+    () => state.selectedCheckout?.path ?? "Select a repository checkout",
     [state.selectedCheckout?.path],
   );
 
@@ -106,14 +106,14 @@ export function WorkspaceBar({ tabId, disabled = false }: WorkspaceBarProps) {
       <div className="grid grid-cols-[minmax(180px,0.8fr)_minmax(180px,0.8fr)_minmax(240px,1.2fr)] gap-3 max-lg:grid-cols-1">
         <label className="grid gap-1.5">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Workspace
+            GitHub Repository
           </span>
           <NativeSelect
             value={selectedWorkspaceId}
             disabled={disabled || loading}
             onChange={(event) => void handleWorkspaceChange(event.target.value)}
           >
-            <option value="">Legacy working directory</option>
+            <option value="">Local Folder / working directory</option>
             {state.workspaces.map((workspace) => (
               <option key={workspace.id} value={workspace.id}>
                 {workspace.name} ({workspace.origin.owner}/{workspace.origin.repo})
@@ -142,7 +142,7 @@ export function WorkspaceBar({ tabId, disabled = false }: WorkspaceBarProps) {
 
         <label className="grid gap-1.5">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Working Directory
+            Run Directory
           </span>
           <Input
             value={state.workdir}
@@ -157,7 +157,7 @@ export function WorkspaceBar({ tabId, disabled = false }: WorkspaceBarProps) {
         <Input
           value={repoPath}
           disabled={disabled || loading}
-          placeholder="Register local GitHub repo path"
+          placeholder="Register GitHub repository path"
           onChange={(event) => setRepoPath(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") void handleRegister();
@@ -187,7 +187,7 @@ export function WorkspaceBar({ tabId, disabled = false }: WorkspaceBarProps) {
         {state.selectedWorkspace ? (
           <span>{state.selectedWorkspace.origin.canonicalUrl}</span>
         ) : (
-          <span>Runs without a selected workspace use the working directory directly.</span>
+          <span>Runs without a selected GitHub Repository use the Local Folder directory directly.</span>
         )}
         {state.activeSameWorkdirCount > 0 ? (
           <Badge variant="secondary">

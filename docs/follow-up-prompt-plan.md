@@ -85,6 +85,20 @@ impl AcpSession {
 }
 ```
 
+`cancel()`은 run 전체 종료가 아니라 현재 prompt turn interrupt를 의미한다. ACP 스펙에서 `session/cancel`은 request-response method가 아니라 notification이며, Client가 Agent에게 진행 중인 `session/prompt` turn을 취소하라고 알리는 메시지다.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "session/cancel",
+  "params": {
+    "sessionId": "sess_abc123def456"
+  }
+}
+```
+
+`session/cancel` 발송 후 Agent는 가능한 빨리 LLM request와 tool invocation을 중단하고, pending `session/update`를 정리한 뒤 원래 진행 중이던 `session/prompt` request에 `stopReason: "cancelled"`로 응답해야 한다. Client는 cancel을 보낸 즉시 현재 turn의 unfinished tool call을 `cancelled` 상태로 표시하고, pending `session/request_permission` 요청에는 `cancelled` outcome으로 응답해야 한다.
+
 `AcpAgentRunner`는 두 가지 진입점을 가진다.
 
 - `start_session(request, run_id, sink) -> Result<AcpSession>`
@@ -111,7 +125,8 @@ pub struct RunContext {
 
 - `attach_session(run_id, session)` 신규 메서드로 `AcpSession`을 주입
 - `send_prompt(run_id, text)`는 lock 획득 후 `session.send_prompt(text)` 호출
-- `cancel_run`은 세션이 있으면 `session.close()` (graceful) 시도 후 `join_handle.abort()` (타임아웃 시). 단순 `abort`는 subprocess kill_on_drop 에 의존하므로 현재처럼 유지해도 됨 — 다만 session 객체의 Drop이 실행되도록 경로를 정리해야 함
+- `interrupt_prompt(run_id)`는 세션이 있으면 `session.cancel()`로 `session/cancel` notification을 보내고, session 자체는 유지한다.
+- `cancel_run`은 run 전체 종료 정책이다. 세션이 있으면 먼저 `session.cancel()`로 현재 turn을 중단시키고, `session/close` 지원 시 close를 시도한 뒤 `join_handle.abort()`를 fallback으로 사용한다. 단순 `abort`는 subprocess `kill_on_drop`에 의존하므로 현재처럼 유지해도 되지만, session 객체의 Drop이 실행되도록 경로를 정리해야 한다.
 
 ### 4.3 Rust: 새 Tauri Command
 
@@ -239,21 +254,25 @@ sequenceDiagram
 ### Rust
 
 - [ ] `src-tauri/src/adapters/acp/runner.rs` — `run()`을 `start_session` + `send_prompt`로 분리, `AcpSession` 도입
+- [ ] `src-tauri/src/adapters/acp/runner.rs` — `AcpSession::cancel()` 추가. `RpcPeer`로 `session/cancel` notification을 보내고 현재 in-flight `session/prompt`가 `stopReason=cancelled`로 끝나는지 관찰
 - [ ] `src-tauri/src/adapters/acp/client.rs` — `RpcPeer`를 `Clone + Send + Sync`로 계속 쓸 수 있게 유지 (현재 이미 `Arc` 래핑)
 - [ ] `src-tauri/src/adapters/acp/mod.rs` — `AcpSession` 재노출
-- [ ] `src-tauri/src/adapters/tauri/session_state.rs` — `RunSlot::Running(RunContext)`로 변경, `attach_session`, `send_prompt` 추가
-- [ ] `src-tauri/src/adapters/tauri/commands.rs` — `send_prompt_to_run` 신설, `start_agent_run`의 task 내부에서 session attach 후 `send_prompt(goal)` 호출
+- [ ] `src-tauri/src/adapters/tauri/session_state.rs` — `RunSlot::Running(RunContext)`로 변경, `attach_session`, `send_prompt`, `interrupt_prompt` 추가
+- [ ] `src-tauri/src/adapters/tauri/commands.rs` — `send_prompt_to_run`, `interrupt_prompt_turn` 신설, `start_agent_run`의 task 내부에서 session attach 후 `send_prompt(goal)` 호출
 - [ ] `src-tauri/src/application/` 유스케이스 — `RunAgentUseCase`를 `StartSessionUseCase` + `SendPromptUseCase`로 분리하거나, 최소한 `execute_with_run_id` 인터페이스 조정
-- [ ] `src-tauri/src/ports/runner.rs` — port trait도 세션 중심으로 업데이트 (`start_session`, `send_prompt`)
+- [ ] `src-tauri/src/ports/session_handle.rs` — port trait도 세션 중심으로 업데이트 (`send_prompt`, `cancel_prompt_turn`)
 - [ ] `src-tauri/src/domain/events.rs` — `LifecycleStatus`에 `PromptCompleted` 추가
-- [ ] `src-tauri/src/lib.rs` — `send_prompt_to_run` command 등록
+- [ ] `src-tauri/src/domain/events.rs` — `LifecycleStatus` 또는 별도 이벤트로 `PromptCancelled` 표현 여부 결정
+- [ ] `src-tauri/src/lib.rs` — `send_prompt_to_run`, `interrupt_prompt_turn` command 등록
 
 ### Frontend
 
 - [ ] `src/shared/api/tauri.ts` — `sendPromptToRun` 추가
 - [ ] `src/entities/message/model.ts` — 새 `LifecycleStatus` 반영, 필요 시 `role` 필드 추가
 - [ ] `src/features/agent-run/model.ts` — `sessionActive`, `awaitingResponse`, `followUpDraft` 상태 추가, 전이 규칙 변경
-- [ ] `src/features/agent-run/useAgentRun.ts` — `send()` 훅, 이벤트 처리 분기 수정
+- [ ] `src/features/agent-run/model.ts` — `Stop response`와 `Cancel run` 상태 전이를 분리. `Stop response`는 session 유지, `Cancel run`은 session 종료
+- [ ] `src/features/agent-run/useAgentRun.ts` — `send()`, `interrupt()` 훅, 이벤트 처리 분기 수정
+- [ ] `src/widgets/run-panel/RunPanel.tsx` — `Stop response`와 `Cancel run` UI 분리
 - [ ] `src/widgets/run-panel/RunPanel.tsx` — Composer 노출 조건, 또는 신규 `FollowUpComposer` 위젯
 - [ ] `src/features/goal-input/GoalEditor.tsx` — 실행 중 readonly 처리
 - [ ] `src/pages/agent-workbench/` — 레이아웃 내 composer 배치
@@ -264,14 +283,18 @@ sequenceDiagram
 2. **Runner 분해** — `AcpSession` 도입, 기존 `run()`을 `start_session().send_prompt(goal).close()`의 합성으로 재작성하여 기존 동작과 동일한지 통합 확인
 3. **AppState 확장** — `RunContext` 도입, cancel/finish 경로 검증
 4. **`send_prompt_to_run` command** — 백엔드 신설 및 단위 테스트(가능한 범위에서 mock RpcPeer로)
-5. **프런트 상태/훅 확장** — `sessionActive`, `awaitingResponse`, `send()` 구현
-6. **UI 추가** — Composer 위젯 및 타임라인 user-role 처리
-7. **E2E 수동 검증** — Claude/Codex/OpenCode 에이전트 각각에서 초기 goal → follow-up 2~3회 → cancel 경로 확인
+5. **`session/cancel` interrupt 구현** — `interrupt_prompt_turn` command와 `AcpSession::cancel()` 추가. 현재 turn만 멈추고 session이 유지되는지 확인
+6. **프런트 상태/훅 확장** — `sessionActive`, `awaitingResponse`, `send()`, `interrupt()` 구현
+7. **UI 추가** — Composer 위젯, `Stop response`, `Cancel run`, 타임라인 user-role 처리
+8. **E2E 수동 검증** — Claude/Codex/OpenCode 에이전트 각각에서 초기 goal → follow-up 2~3회 → `Stop response` → follow-up 재개 → `Cancel run` 경로 확인
 
 ## 7. 위험 및 미결 사항
 
 - ACP 프로토콜에서 한 세션이 복수 `session/prompt`를 연속 수락하는지는 에이전트 구현에 따라 다를 수 있다. 기본 에이전트(`@agentclientprotocol/claude-agent-acp`, `@zed-industries/codex-acp`, `opencode-ai acp`, `pi-acp`) 각각의 동작을 스모크 테스트로 확인 필요.
-- `session/cancel`(진행 중 응답 취소) 지원 여부도 확인하여 follow-up 중 "Stop this response only" 버튼을 UI에 노출할지 결정.
+- ACP 스펙에는 `session/cancel` 규약이 있다. 다만 실제 agent implementation이 동일하게 동작하는지 확인해야 한다. 기대 동작은 `session/cancel` notification 발송 후 원래 `session/prompt` response가 `stopReason=cancelled`로 반환되는 것이다.
+- 현재 구현의 `cancel_agent_run`은 `session/cancel`을 보내지 않고 task/subprocess를 abort한다. 이는 "현재 응답 interrupt"가 아니라 "run 전체 종료"이므로 `Stop response`와 `Cancel run`을 별도 command/UI로 분리해야 한다.
+- `session/cancel` 후에도 Agent가 pending `session/update`를 보낼 수 있으므로 Client는 cancel 직후 이벤트를 무시하지 말고, 원래 `session/prompt`가 종료될 때까지 update를 받아야 한다.
+- `session/request_permission`이 pending인 상태에서 `session/cancel`을 보내면 Client는 pending permission request에 `cancelled` outcome으로 응답해야 한다. 현재 `PermissionBroker` 경로에 이 전이가 있는지 확인 필요.
 - 프롬프트 in-flight 중 follow-up 발송 시 429 유사 거절을 어떻게 UX 처리할지(대기 큐 vs 즉시 거절) 논의 필요. 초기 구현은 "거절"로 단순화.
 - 세션을 오래 열어두면 subprocess stdout 버퍼(`stdio_buffer_limit_mb`) 누적 이슈가 생길 수 있음. 기존 limit 로직이 누적 기준인지 라인당 기준인지 확인 필요.
 - `auto_allow` 및 권한 브로커 로직은 session-scoped 이므로 기존 동작이 follow-up에도 자연스럽게 적용되는지 회귀 확인.

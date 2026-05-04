@@ -1,5 +1,12 @@
 # Workspace 도입 계획
 
+> 상태: 용어 기준은 새 문서로 대체됨.
+>
+> 이 문서는 `GitHub Repository / Local Repository / Local Folder` taxonomy 이전에 작성되었다.
+> 먼저 `docs/work-context-taxonomy.md`를 읽는다. 이 문서의 `Workspace`는 대부분
+> GitHub origin이 연결된 git repository인 `GitHub Repository`를 뜻한다.
+> 엔티티 정의와 의존관계 chart는 `docs/work-context-entities.md`에서 관리한다.
+
 ## 1. 목표
 
 ACP Agent Workbench에 **workspace** 개념을 도입한다.

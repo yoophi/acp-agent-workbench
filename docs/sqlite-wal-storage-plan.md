@@ -1,5 +1,12 @@
 # SQLite WAL 저장소 도입 계획
 
+> 상태: 용어 주석.
+>
+> 이 문서는 이전 `workspace` 저장소 용어를 사용한다. 현재 taxonomy에서는 기존
+> `workspaces` row가 `GitHub Repository` context에 대응한다. 향후 저장소는
+> `GitHub Repository`, `Local Repository`, `Local Folder`를 모두 담을 수 있는
+> `WorkContext` row로 일반화해야 한다.
+
 ## 1. 목표
 
 현재 workspace metadata는 `workspaces.json` 파일에 저장된다. 이 방식은 초기 MVP에는 단순하지만, 다음 요구가 들어오면 한계가 빨리 온다.

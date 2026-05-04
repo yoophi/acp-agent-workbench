@@ -37,11 +37,11 @@
 ```mermaid
 flowchart LR
     subgraph Frontend
-      Page[AgentWorkbenchPage] --> Store[useAgentRunStore (global)]
+      Page["AgentWorkbenchPage"] --> Store["useAgentRunStore (global)"]
     end
     subgraph Backend
-      Cmds[Tauri commands] --> State[AppState (single active run)]
-      State --> Runner[AcpAgentRunner]
+      Cmds["Tauri commands"] --> State["AppState (single active run)"]
+      State --> Runner["AcpAgentRunner"]
     end
     Page -->|invoke| Cmds
     Runner -->|emit agent-run-event| Page
@@ -213,20 +213,20 @@ WorkbenchPage
 ```mermaid
 flowchart LR
   subgraph Frontend
-    Page[WorkbenchPage]
-    Store[useWorkbenchStore<br/>tabs + activeTabId]
-    Router[Event router (single)]
+    Page["WorkbenchPage"]
+    Store["useWorkbenchStore: tabs + activeTabId"]
+    Router["Event router (single)"]
     Page --> Store
     Router --> Store
   end
   subgraph Backend
-    Cmds[Tauri commands]
-    State[AppState<br/>HashMap&lt;run_id, RunContext&gt;]
+    Cmds["Tauri commands"]
+    State["AppState run map"]
     Cmds --> State
   end
   Page -->|start_agent_run / send_prompt / cancel| Cmds
-  State -->|agent-run-event (runId=A)| Router
-  State -->|agent-run-event (runId=B)| Router
+  State -->|agent-run-event runId A| Router
+  State -->|agent-run-event runId B| Router
   Router -->|dispatchRunEvent| Store
 ```
 
