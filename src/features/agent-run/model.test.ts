@@ -149,6 +149,7 @@ describe("workspace-scoped run state", () => {
       goal: "continue in another window",
       cwd: "/repo",
       customCommand: "",
+      agentCommandOverrides: {},
       stdioBufferLimitMb: 50,
       autoAllow: true,
       resumePolicy: "fresh" as const,

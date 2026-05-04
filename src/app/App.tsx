@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AgentWorkbenchPage } from "../pages/agent-workbench";
+import { SettingsPage } from "../pages/settings";
 import { hydrateDetachedWorkbenchTab, installAgentRuntime } from "../features/agent-run";
 import {
   closeWorkbenchWindow,
@@ -11,6 +12,8 @@ import {
 const queryClient = new QueryClient();
 
 export function App() {
+  const [view, setView] = useState<"workbench" | "settings">("workbench");
+
   useEffect(() => {
     void (async () => {
       const bootstrap = await getWindowBootstrap();
@@ -43,9 +46,28 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey && event.key === ",") {
+        event.preventDefault();
+        setView("settings");
+      }
+      if (event.key === "Escape") {
+        setView("workbench");
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
-      <AgentWorkbenchPage />
+      {view === "settings" ? (
+        <SettingsPage onBack={() => setView("workbench")} />
+      ) : (
+        <AgentWorkbenchPage />
+      )}
     </QueryClientProvider>
   );
 }

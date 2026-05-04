@@ -80,6 +80,7 @@ describe("agent-run api", () => {
       goal: "review the diff",
       cwd: "/repo",
       customCommand: "",
+      agentCommandOverrides: {},
       stdioBufferLimitMb: 50,
       autoAllow: true,
       resumePolicy: "fresh",

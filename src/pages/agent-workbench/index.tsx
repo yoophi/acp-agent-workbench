@@ -5,7 +5,6 @@ import { FollowUpComposer } from "../../widgets/follow-up-composer";
 import { FollowUpQueue } from "../../widgets/follow-up-queue";
 import { LocalTasksPanel } from "../../widgets/local-tasks";
 import { RunPanel } from "../../widgets/run-panel";
-import { SavedPromptsPanel } from "../../widgets/saved-prompts";
 import { TabBar } from "../../widgets/workbench-tabs";
 import { WorkspaceBar } from "../../widgets/workspace-bar";
 import { WorkspaceGitPanel } from "../../widgets/workspace-git";
@@ -60,13 +59,8 @@ export function AgentWorkbenchPage() {
             onSelectAgent={state.setSelectedAgentId}
             scenario={state.scenario}
             onScenarioChange={state.setScenario}
-            selectedAgent={state.selectedAgent}
             cwd={state.cwd}
             onCwdChange={state.setCwd}
-            customCommand={state.customCommand}
-            onCustomCommandChange={state.setCustomCommand}
-            stdioBufferLimitMb={state.stdioBufferLimitMb}
-            onStdioBufferLimitChange={state.setStdioBufferLimitMb}
             autoAllow={state.autoAllow}
             onAutoAllowChange={state.setAutoAllow}
             resumePolicy={state.resumePolicy}
@@ -76,8 +70,6 @@ export function AgentWorkbenchPage() {
             onClearLatestAcpSession={state.clearLatestAcpSession}
             ralphLoop={state.ralphLoop}
             onRalphLoopChange={state.setRalphLoop}
-            idleTimeoutSec={state.idleTimeoutSec}
-            onIdleTimeoutChange={state.setIdleTimeoutSec}
             idleRemainingSec={state.idleRemainingSec}
             isRunning={state.isRunning}
             activeRunId={state.activeRunId}
@@ -92,12 +84,6 @@ export function AgentWorkbenchPage() {
             sessionActive={state.sessionActive}
             awaitingResponse={state.awaitingResponse}
             queueLength={state.followUpQueue.length}
-          />
-          <SavedPromptsPanel
-            workspaceId={state.workspaceId}
-            sessionActive={state.sessionActive}
-            onApply={state.applySavedPrompt}
-            onError={state.setError}
           />
           <FollowUpQueue
             items={state.followUpQueue}

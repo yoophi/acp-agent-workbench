@@ -12,13 +12,8 @@ type RunPanelProps = {
   onSelectAgent: (id: string) => void;
   scenario: RunScenarioId;
   onScenarioChange: (id: RunScenarioId) => void;
-  selectedAgent?: AgentDescriptor;
   cwd: string;
   onCwdChange: (value: string) => void;
-  customCommand: string;
-  onCustomCommandChange: (value: string) => void;
-  stdioBufferLimitMb: number;
-  onStdioBufferLimitChange: (value: number) => void;
   autoAllow: boolean;
   onAutoAllowChange: (value: boolean) => void;
   resumePolicy: ResumePolicy;
@@ -28,8 +23,6 @@ type RunPanelProps = {
   onClearLatestAcpSession: () => void;
   ralphLoop: RalphLoopSettings;
   onRalphLoopChange: (value: RalphLoopSettings) => void;
-  idleTimeoutSec: number;
-  onIdleTimeoutChange: (value: number) => void;
   idleRemainingSec: number | null;
   isRunning: boolean;
   activeRunId: string | null;
@@ -44,13 +37,8 @@ export function RunPanel({
   onSelectAgent,
   scenario,
   onScenarioChange,
-  selectedAgent,
   cwd,
   onCwdChange,
-  customCommand,
-  onCustomCommandChange,
-  stdioBufferLimitMb,
-  onStdioBufferLimitChange,
   autoAllow,
   onAutoAllowChange,
   resumePolicy,
@@ -60,8 +48,6 @@ export function RunPanel({
   onClearLatestAcpSession,
   ralphLoop,
   onRalphLoopChange,
-  idleTimeoutSec,
-  onIdleTimeoutChange,
   idleRemainingSec,
   isRunning,
   activeRunId,
@@ -118,37 +104,6 @@ export function RunPanel({
         <label className="grid gap-2">
           <span className="text-sm font-medium">Working directory</span>
           <Input value={cwd} onChange={(event) => onCwdChange(event.target.value)} />
-        </label>
-
-        <label className="grid gap-2">
-          <span className="text-sm font-medium">Command override</span>
-          <Input
-            value={customCommand}
-            onChange={(event) => onCustomCommandChange(event.target.value)}
-            placeholder={selectedAgent?.command ?? "agent command"}
-          />
-        </label>
-
-        <label className="grid gap-2">
-          <span className="text-sm font-medium">Stdio buffer</span>
-          <Input
-            type="number"
-            min={1}
-            max={512}
-            value={stdioBufferLimitMb}
-            onChange={(event) => onStdioBufferLimitChange(Number(event.target.value))}
-          />
-        </label>
-
-        <label className="grid gap-2">
-          <span className="text-sm font-medium">Idle timeout (sec, 0 = off)</span>
-          <Input
-            type="number"
-            min={0}
-            max={3600}
-            value={idleTimeoutSec}
-            onChange={(event) => onIdleTimeoutChange(Math.max(0, Number(event.target.value) || 0))}
-          />
         </label>
 
         <label className="flex items-center gap-2 text-sm font-medium">

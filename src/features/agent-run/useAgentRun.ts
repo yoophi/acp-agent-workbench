@@ -63,19 +63,24 @@ export function useAgentRun(tabId: string) {
     () => agents.find((agent) => agent.id === tab?.selectedAgentId),
     [agents, tab?.selectedAgentId],
   );
+  const selectedAgentCommandOverride = useMemo(() => {
+    const agentId = tab?.selectedAgentId;
+    if (!agentId) return "";
+    return tab?.agentCommandOverrides?.[agentId]?.trim() || tab?.customCommand.trim() || "";
+  }, [tab?.agentCommandOverrides, tab?.customCommand, tab?.selectedAgentId]);
   const acpSessionQuery = useMemo(
     () => ({
       workspaceId: tab?.workspaceId ?? null,
       checkoutId: tab?.checkoutId ?? null,
       workdir: tab?.cwd?.trim() || null,
       agentId: tab?.selectedAgentId ?? null,
-      agentCommand: (tab?.customCommand.trim() || selectedAgent?.command) ?? null,
+      agentCommand: (selectedAgentCommandOverride || selectedAgent?.command) ?? null,
       limit: 1,
     }),
     [
+      selectedAgentCommandOverride,
       selectedAgent?.command,
       tab?.checkoutId,
-      tab?.customCommand,
       tab?.cwd,
       tab?.selectedAgentId,
       tab?.workspaceId,
@@ -166,7 +171,10 @@ export function useAgentRun(tabId: string) {
       workspaceId: current.workspaceId ?? undefined,
       checkoutId,
       cwd,
-      agentCommand: current.customCommand.trim() || undefined,
+      agentCommand:
+        current.agentCommandOverrides[current.selectedAgentId]?.trim() ||
+        current.customCommand.trim() ||
+        undefined,
       stdioBufferLimitMb: Math.min(512, Math.max(1, current.stdioBufferLimitMb || 50)),
       autoAllow: current.autoAllow,
       resumePolicy: current.resumePolicy === "fresh" ? undefined : current.resumePolicy,
@@ -283,6 +291,18 @@ export function useAgentRun(tabId: string) {
     (value: string) => patch({ customCommand: value }),
     [patch],
   );
+  const setAgentCommandOverride = useCallback(
+    (agentId: string, value: string) => {
+      const current = selectTab(useWorkbenchStore.getState(), tabId);
+      patch({
+        agentCommandOverrides: {
+          ...(current?.agentCommandOverrides ?? {}),
+          [agentId]: value,
+        },
+      });
+    },
+    [tabId, patch],
+  );
   const setStdioBufferLimitMb = useCallback(
     (value: number) => patch({ stdioBufferLimitMb: value }),
     [patch],
@@ -335,6 +355,9 @@ export function useAgentRun(tabId: string) {
     setCwd,
     customCommand: tab?.customCommand ?? "",
     setCustomCommand,
+    agentCommandOverrides: tab?.agentCommandOverrides ?? {},
+    selectedAgentCommandOverride,
+    setAgentCommandOverride,
     stdioBufferLimitMb: tab?.stdioBufferLimitMb ?? 50,
     setStdioBufferLimitMb,
     autoAllow: tab?.autoAllow ?? true,

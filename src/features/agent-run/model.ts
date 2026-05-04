@@ -34,6 +34,7 @@ export type AgentRunDraft = {
   scenario: RunScenarioId;
   goal: string;
   customCommand: string;
+  agentCommandOverrides: Record<string, string>;
   stdioBufferLimitMb: number;
   autoAllow: boolean;
   resumePolicy: ResumePolicy;
@@ -92,6 +93,7 @@ export type TabState = {
   goal: string;
   cwd: string;
   customCommand: string;
+  agentCommandOverrides: Record<string, string>;
   stdioBufferLimitMb: number;
   autoAllow: boolean;
   resumePolicy: ResumePolicy;
@@ -163,6 +165,7 @@ export function createTabState(preset: Partial<TabState> = {}, index = 0): TabSt
     goal: preset.goal ?? defaultGoal,
     cwd: preset.cwd ?? "~/tmp/acp-tauri-agent-workspace",
     customCommand: preset.customCommand ?? "",
+    agentCommandOverrides: preset.agentCommandOverrides ?? {},
     stdioBufferLimitMb: preset.stdioBufferLimitMb ?? 50,
     autoAllow: preset.autoAllow ?? true,
     resumePolicy: preset.resumePolicy ?? "fresh",
@@ -190,6 +193,7 @@ function tabToDraft(tab: TabState): AgentRunDraft {
     scenario: tab.scenario,
     goal: tab.goal,
     customCommand: tab.customCommand,
+    agentCommandOverrides: tab.agentCommandOverrides,
     stdioBufferLimitMb: tab.stdioBufferLimitMb,
     autoAllow: tab.autoAllow,
     resumePolicy: tab.resumePolicy,
@@ -535,6 +539,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
           scenario: patch.scenario ?? next.draft.scenario,
           goal: patch.goal ?? next.draft.goal,
           customCommand: patch.customCommand ?? next.draft.customCommand,
+          agentCommandOverrides: patch.agentCommandOverrides ?? next.draft.agentCommandOverrides,
           stdioBufferLimitMb: patch.stdioBufferLimitMb ?? next.draft.stdioBufferLimitMb,
           autoAllow: patch.autoAllow ?? next.draft.autoAllow,
           resumePolicy: patch.resumePolicy ?? next.draft.resumePolicy,
@@ -1030,6 +1035,7 @@ function workspaceViewToTabState(
     goal: view.draft.goal,
     cwd: view.cwd,
     customCommand: view.draft.customCommand,
+    agentCommandOverrides: view.draft.agentCommandOverrides,
     stdioBufferLimitMb: view.draft.stdioBufferLimitMb,
     autoAllow: view.draft.autoAllow,
     resumePolicy: view.draft.resumePolicy,
