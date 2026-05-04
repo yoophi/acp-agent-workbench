@@ -1,6 +1,17 @@
 import { Send } from "lucide-react";
 import type { KeyboardEvent } from "react";
-import { Button, Card, CardContent, CardHeader, CardTitle, CardTitleBlock, Textarea } from "../../shared/ui";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardTitleBlock,
+  PromptInput,
+  PromptInputAction,
+  PromptInputActions,
+  PromptInputTextarea,
+} from "../../shared/ui";
 
 type FollowUpComposerProps = {
   value: string;
@@ -46,20 +57,26 @@ export function FollowUpComposer({
         <span className="text-xs font-medium text-muted-foreground">⌘/Ctrl + Enter</span>
       </CardHeader>
       <CardContent className="grid gap-3 pt-6">
-        <Textarea
-          className="min-h-[110px] resize-y"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
+        <PromptInput
           disabled={!sessionActive}
-          spellCheck={false}
-        />
-        <div className="flex justify-end">
-          <Button type="button" variant="primary" icon={<Send size={16} />} disabled={!canSubmit} onClick={onSend}>
-            {sendLabel}
-          </Button>
-        </div>
+          maxHeight={180}
+          onValueChange={onChange}
+          value={value}
+        >
+          <PromptInputTextarea
+            className="min-h-[92px]"
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            spellCheck={false}
+          />
+          <PromptInputActions className="justify-end border-t pt-3">
+            <PromptInputAction tooltip={sendLabel}>
+              <Button type="button" variant="primary" icon={<Send size={16} />} disabled={!canSubmit} onClick={onSend}>
+                {sendLabel}
+              </Button>
+            </PromptInputAction>
+          </PromptInputActions>
+        </PromptInput>
       </CardContent>
     </Card>
   );

@@ -4,7 +4,17 @@ import remarkGfm from "remark-gfm";
 import { eventGroups, type EventGroup, type TimelineItem } from "../../entities/message";
 import { usePermissionResponse } from "../../features/permission-response";
 import { cn } from "../../shared/lib";
-import { Button, Card, CardHeader, CardTitle, CardTitleBlock } from "../../shared/ui";
+import {
+  Button,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardTitleBlock,
+  Message,
+  MessageActions,
+  MessageContent,
+  MessageMeta,
+} from "../../shared/ui";
 
 type EventStreamProps = {
   items: TimelineItem[];
@@ -50,44 +60,46 @@ export function EventStream({ items, filter, onFilterChange, onError }: EventStr
           </div>
         ) : (
           items.map((item) => (
-            <article
+            <Message
               key={item.id}
-              className={cn("mt-2.5 grid grid-cols-[132px_minmax(0,1fr)] gap-3.5 rounded-md border-l-4 bg-background px-3.5 py-3 first:mt-0 max-sm:grid-cols-1", toneClassName(item))}
+              className={cn("mt-2.5 first:mt-0", toneClassName(item))}
             >
-              <div className="grid content-start gap-1">
+              <MessageMeta>
                 <span className="text-xs font-semibold uppercase text-muted-foreground">{item.group}</span>
                 <strong className="[overflow-wrap:anywhere] text-sm font-medium">{item.title}</strong>
-              </div>
-              {isMarkdownStream(item) ? (
-                <StreamingMarkdown content={item.body} />
-              ) : (
-                <pre className="m-0 min-w-0 whitespace-pre-wrap break-words font-mono text-sm leading-6">
-                  {item.body}
-                </pre>
-              )}
-              {item.event.type === "permission" && item.event.requiresResponse && item.event.permissionId ? (
-                <div className="col-start-2 mt-[-4px] flex gap-2 max-sm:col-start-1">
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="sm"
-                    onClick={() => permissionResponse.respond(item, "allow")}
-                    disabled={permissionResponse.isPending(item.event.permissionId) || !permissionResponse.hasOption(item, "allow")}
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => permissionResponse.respond(item, "reject")}
-                    disabled={permissionResponse.isPending(item.event.permissionId) || !permissionResponse.hasOption(item, "reject")}
-                  >
-                    Reject
-                  </Button>
-                </div>
-              ) : null}
-            </article>
+              </MessageMeta>
+              <MessageContent>
+                {isMarkdownStream(item) ? (
+                  <StreamingMarkdown content={item.body} />
+                ) : (
+                  <pre className="m-0 min-w-0 whitespace-pre-wrap break-words font-mono text-sm leading-6">
+                    {item.body}
+                  </pre>
+                )}
+                {item.event.type === "permission" && item.event.requiresResponse && item.event.permissionId ? (
+                  <MessageActions>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      onClick={() => permissionResponse.respond(item, "allow")}
+                      disabled={permissionResponse.isPending(item.event.permissionId) || !permissionResponse.hasOption(item, "allow")}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => permissionResponse.respond(item, "reject")}
+                      disabled={permissionResponse.isPending(item.event.permissionId) || !permissionResponse.hasOption(item, "reject")}
+                    >
+                      Reject
+                    </Button>
+                  </MessageActions>
+                ) : null}
+              </MessageContent>
+            </Message>
           ))
         )}
         <div ref={endRef} />

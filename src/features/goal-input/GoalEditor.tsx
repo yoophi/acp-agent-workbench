@@ -1,6 +1,17 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { FileUp } from "lucide-react";
-import { Button, Card, CardHeader, CardTitle, CardTitleBlock, Textarea } from "../../shared/ui";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardTitleBlock,
+  PromptInput,
+  PromptInputAction,
+  PromptInputActions,
+  PromptInputTextarea,
+} from "../../shared/ui";
 import { loadGoalFile } from "./api";
 
 type GoalEditorProps = {
@@ -34,24 +45,38 @@ export function GoalEditor({ value, onChange, onError, readOnly = false }: GoalE
           <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Goal</p>
           <CardTitle id="goal-heading">Agent task</CardTitle>
         </CardTitleBlock>
-        <Button
-          type="button"
-          variant="ghost"
-          icon={<FileUp size={16} />}
-          onClick={handleLoadFile}
-          disabled={readOnly}
-        >
-          Load file
-        </Button>
       </CardHeader>
-      <Textarea
-        className="min-h-[200px] flex-1 resize-none rounded-none border-0 p-6 text-base leading-7 shadow-none focus-visible:ring-0"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder="Describe the implementation goal for the selected ACP agent."
-        spellCheck={false}
-        readOnly={readOnly}
-      />
+      <CardContent className="flex min-h-0 flex-1 p-4 pt-4">
+        <PromptInput
+          className="flex min-h-[220px] flex-1 flex-col"
+          disabled={readOnly}
+          maxHeight="100%"
+          onValueChange={onChange}
+          value={value}
+        >
+          <PromptInputTextarea
+            className="min-h-[170px] flex-1 text-base leading-7"
+            disableAutosize
+            placeholder="Describe the implementation goal for the selected ACP agent."
+            readOnly={readOnly}
+            spellCheck={false}
+          />
+          <PromptInputActions className="justify-end border-t pt-3">
+            <PromptInputAction tooltip="Load goal from .txt or .md file">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                icon={<FileUp size={16} />}
+                onClick={handleLoadFile}
+                disabled={readOnly}
+              >
+                Load file
+              </Button>
+            </PromptInputAction>
+          </PromptInputActions>
+        </PromptInput>
+      </CardContent>
     </Card>
   );
 }
