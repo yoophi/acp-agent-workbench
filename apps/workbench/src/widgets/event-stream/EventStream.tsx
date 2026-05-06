@@ -3,18 +3,18 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { eventGroups, type EventGroup, type TimelineItem } from "../../entities/message";
 import { usePermissionResponse } from "../../features/permission-response";
-import { cn } from "../../shared/lib";
 import {
   Button,
   Card,
   CardHeader,
   CardTitle,
   CardTitleBlock,
+  cn,
   Message,
   MessageActions,
   MessageContent,
   MessageMeta,
-} from "../../shared/ui";
+} from "@acp/ui";
 
 type EventStreamProps = {
   items: TimelineItem[];

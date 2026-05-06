@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "turbo run dev --filter=@acp/workbench",
     "build": "turbo run check-types build",
+    "check-types": "turbo run check-types",
     "check:backend-boundaries": "turbo run check:backend-boundaries --filter=@acp/workbench",
     "check:backend-boundaries:self-test": "turbo run check:backend-boundaries:self-test --filter=@acp/workbench",
     "check:fsd": "turbo run check:fsd --filter=@acp/workbench",

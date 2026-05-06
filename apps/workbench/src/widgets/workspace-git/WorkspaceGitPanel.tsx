@@ -5,7 +5,7 @@ import {
   summarizeWorkspaceDiff,
 } from "../../features/agent-run";
 import type { WorkspaceDiffSummary, WorkspaceGitStatus } from "../../entities/workspace";
-import { Badge, Button } from "../../shared/ui";
+import { Badge, Button } from "@acp/ui";
 
 type WorkspaceGitPanelProps = {
   workspaceId: string | null;

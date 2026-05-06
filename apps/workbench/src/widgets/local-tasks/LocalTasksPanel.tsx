@@ -2,7 +2,7 @@ import { AlertTriangle, CheckCircle2, ListChecks, Play, RefreshCw, SendToBack } 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LocalTaskList, LocalTaskStatus, LocalTaskSummary } from "../../entities/workspace";
 import { listLocalTasks, updateLocalTaskStatus } from "../../features/agent-run";
-import { Badge, Button, NativeSelect, Textarea } from "../../shared/ui";
+import { Badge, Button, NativeSelect, Textarea } from "@acp/ui";
 
 type LocalTasksPanelProps = {
   workspaceId: string | null;

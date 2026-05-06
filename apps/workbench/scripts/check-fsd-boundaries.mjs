@@ -117,7 +117,7 @@ function runSpecifierParserSelfTest() {
     const lazy = import("../../widgets/event-stream");
     export { useAgentRun } from "../../features/agent-run";
     export type { AgentDescriptor } from "../../entities/agent";
-    export * from "../../shared/ui";
+    export * from "@acp/ui";
   `;
   const actual = collectImportSpecifiers(source);
   const expected = [
@@ -128,7 +128,7 @@ function runSpecifierParserSelfTest() {
     "../../widgets/event-stream",
     "../../features/agent-run",
     "../../entities/agent",
-    "../../shared/ui",
+    "@acp/ui",
   ];
 
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {

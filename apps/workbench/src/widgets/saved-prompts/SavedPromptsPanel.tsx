@@ -8,7 +8,7 @@ import {
   recordSavedPromptUsed,
   updateSavedPrompt,
 } from "../../features/agent-run";
-import { Button, Card, CardContent, CardHeader, CardTitle, CardTitleBlock, Input, NativeSelect, Textarea } from "../../shared/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle, CardTitleBlock, Input, NativeSelect, Textarea } from "@acp/ui";
 
 type SavedPromptsPanelProps = {
   workspaceId?: string | null;

@@ -11,7 +11,7 @@ import {
   PromptInputAction,
   PromptInputActions,
   PromptInputTextarea,
-} from "../../shared/ui";
+} from "@acp/ui";
 import { loadGoalFile } from "./api";
 
 type GoalEditorProps = {

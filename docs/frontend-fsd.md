@@ -15,7 +15,7 @@ app -> pages -> widgets -> features -> entities -> shared
 - `widgets`: page section. feature, entity, shared UI로 구성한다. widget은 Tauri command를 직접 호출하거나 long-lived application state를 직접 소유하지 않는다.
 - `features`: agent run, goal file loading, permission response, 향후 task/scenario action 같은 사용자 action과 business interaction.
 - `entities`: agent, message 같은 안정적인 frontend business object와 formatter.
-- `shared`: domain-agnostic infrastructure, reusable UI primitive, generic utility.
+- `shared`: domain-agnostic infrastructure and generic utility. Shared UI primitives live in the workspace package `@acp/ui`.
 
 ## Import Rules
 
@@ -52,7 +52,7 @@ npm run check:fsd
 - `features/permission-response`
 - `entities/message`
 - `widgets/event-stream`
-- `shared/ui`
+- `@acp/ui`
 
 다른 slice의 internal file을 직접 import하지 않는다. 예를 들어 widget이나 page에서 `features/agent-run/model.ts`를 직접 import하지 말고, 필요한 symbol은 해당 slice의 `index.ts`에서 명시적으로 export한다.
 

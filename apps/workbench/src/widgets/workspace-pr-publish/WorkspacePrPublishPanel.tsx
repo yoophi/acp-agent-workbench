@@ -8,7 +8,7 @@ import {
   summarizeWorkspaceDiff,
 } from "../../features/agent-run";
 import type { GitHubPullRequestSummary, WorkspaceDiffSummary, WorkspaceGitStatus } from "../../entities/workspace";
-import { Badge, Button, Input, Textarea } from "../../shared/ui";
+import { Badge, Button, Input, Textarea } from "@acp/ui";
 
 type WorkspacePrPublishPanelProps = {
   workspaceId: string | null;

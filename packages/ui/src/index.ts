@@ -6,3 +6,4 @@ export { Message, MessageActions, MessageContent, MessageMeta } from "./Message"
 export { NativeSelect } from "./NativeSelect";
 export { PromptInput, PromptInputAction, PromptInputActions, PromptInputTextarea } from "./PromptInput";
 export { Textarea } from "./Textarea";
+export { cn } from "./lib/utils";
