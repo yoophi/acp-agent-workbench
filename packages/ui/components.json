@@ -4,13 +4,13 @@
   "rsc": false,
   "tsx": true,
   "tailwind": {
-    "config": "tailwind.config.js",
-    "css": "src/app/styles.css",
+    "config": "../../apps/workbench/tailwind.config.js",
+    "css": "../../apps/workbench/src/app/styles.css",
     "baseColor": "neutral",
     "cssVariables": true
   },
   "aliases": {
-    "components": "src/shared/ui",
-    "utils": "src/shared/lib"
+    "components": "src",
+    "utils": "src/lib"
   }
 }

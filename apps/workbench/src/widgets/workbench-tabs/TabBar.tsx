@@ -8,8 +8,7 @@ import {
   useTabList,
   type WorkbenchTabListItem,
 } from "../../features/agent-run";
-import { cn } from "../../shared/lib";
-import { Badge, Button } from "../../shared/ui";
+import { Badge, Button, cn } from "@acp/ui";
 
 type TabStatus =
   | "idle"

@@ -12,7 +12,7 @@ import {
   upsertWorkspaceRegistration,
   useWorkspaceState,
 } from "../../features/agent-run";
-import { Badge, Button, Input, NativeSelect } from "../../shared/ui";
+import { Badge, Button, Input, NativeSelect } from "@acp/ui";
 
 type WorkspaceBarProps = {
   tabId: string;

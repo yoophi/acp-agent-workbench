@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { ArrowLeft, Bell, Database, FolderGit2, Save, Settings, Shield } from "lucide-react";
 import { useActiveTabId, useAgentRun } from "../../features/agent-run";
-import { Button, Card, CardContent, CardHeader, CardTitle, CardTitleBlock, Input } from "../../shared/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle, CardTitleBlock, Input } from "@acp/ui";
 import { SavedPromptsPanel } from "../../widgets/saved-prompts";
 
 type SettingsPageProps = {

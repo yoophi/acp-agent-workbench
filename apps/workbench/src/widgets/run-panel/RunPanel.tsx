@@ -3,8 +3,7 @@ import type { AcpSessionRecord } from "../../entities/acp-session";
 import type { AgentDescriptor } from "../../entities/agent";
 import type { RalphLoopSettings, ResumePolicy } from "../../entities/message";
 import { RUN_SCENARIOS, type LocalTaskRunSource, type RunScenarioId } from "../../features/agent-run";
-import { cn } from "../../shared/lib";
-import { Button, Card, CardContent, CardHeader, CardTitle, CardTitleBlock, Input, NativeSelect } from "../../shared/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle, CardTitleBlock, cn, Input, NativeSelect } from "@acp/ui";
 
 type RunPanelProps = {
   agents: AgentDescriptor[];

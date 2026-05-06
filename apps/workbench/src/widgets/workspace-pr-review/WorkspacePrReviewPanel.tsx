@@ -7,7 +7,7 @@ import type {
   GitHubPullRequestReviewDecision,
   GitHubPullRequestReviewResult,
 } from "../../entities/workspace";
-import { Badge, Button, Input, NativeSelect, Textarea } from "../../shared/ui";
+import { Badge, Button, Input, NativeSelect, Textarea } from "@acp/ui";
 
 type WorkspacePrReviewPanelProps = {
   workspaceId: string | null;
