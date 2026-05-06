@@ -60,7 +60,7 @@ function createTauriDevConfig(host, port) {
 
   return {
     build: {
-      beforeDevCommand: `npm run dev -- --host ${host} --port ${port} --strictPort`,
+      beforeDevCommand: `pnpm run dev -- --host ${host} --port ${port} --strictPort`,
       devUrl: `http://${urlHost}:${port}`,
     },
   };
@@ -68,7 +68,7 @@ function createTauriDevConfig(host, port) {
 
 const passthroughArgs = process.argv.slice(2);
 const printConfig = passthroughArgs.includes("--print-config");
-const tauriArgs = passthroughArgs.filter((arg) => arg !== "--print-config");
+const tauriArgs = passthroughArgs.filter((arg) => arg !== "--" && arg !== "--print-config");
 const host = process.env.TAURI_DEV_HOST ?? "127.0.0.1";
 const requestedPort = parsePort(
   process.env.TAURI_DEV_PORT ?? process.env.VITE_DEV_SERVER_PORT,
@@ -84,9 +84,9 @@ if (printConfig) {
 
 console.log(`Starting Tauri dev app at ${config.build.devUrl}`);
 
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const child = spawn(
-  npmCommand,
+  pnpmCommand,
   ["run", "tauri", "--", "dev", "--config", JSON.stringify(config), ...tauriArgs],
   {
     stdio: "inherit",

@@ -1,0 +1,50 @@
+{
+  "name": "@acp/workbench",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check-types": "tsc --noEmit",
+    "check:backend-boundaries": "node scripts/check-backend-boundaries.mjs",
+    "check:backend-boundaries:self-test": "node scripts/check-backend-boundaries.mjs --self-test",
+    "check:fsd": "node scripts/check-fsd-boundaries.mjs",
+    "check:fsd:self-test": "node scripts/check-fsd-boundaries.mjs --self-test",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "node scripts/tauri-dev.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@radix-ui/react-slot": "^1.2.4",
+    "@tanstack/react-query": "^5.90.0",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.4.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "tailwind-merge": "^3.5.0",
+    "vite": "^7.0.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.10.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitest/ui": "^2.1.9",
+    "autoprefixer": "^10.5.0",
+    "jsdom": "^25.0.1",
+    "postcss": "^8.5.10",
+    "react-grab": "^0.1.32",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.9"
+  }
+}

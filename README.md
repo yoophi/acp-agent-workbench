@@ -25,10 +25,12 @@ Tauri 기반의 Agent Client Protocol(ACP) 에이전트 실행 워크벤치입�
 - Tailwind CSS
 - TanStack Query
 - Zustand
+- pnpm
+- Turborepo
 
 ## 사전 준비
 
-- Node.js 및 npm
+- Node.js 및 pnpm
 - Rust toolchain
 - Tauri 2 개발 환경
 
@@ -37,56 +39,56 @@ ACP 에이전트는 기본적으로 `npx` 명령으로 실행되므로 네트워
 ## 설치
 
 ```sh
-npm install
+pnpm install
 ```
 
 ## 개발 실행
 
 ```sh
-npm run tauri:dev
+pnpm tauri:dev
 ```
 
-`npm run tauri:dev`는 `1420`부터 사용 가능한 포트를 찾아 Tauri의 `devUrl`과 Vite 개발 서버 포트를 함께 설정합니다. 따라서 이미 개발용 앱이 떠 있어도 다른 포트로 추가 인스턴스를 실행할 수 있습니다.
+`pnpm tauri:dev`는 `1420`부터 사용 가능한 포트를 찾아 Tauri의 `devUrl`과 Vite 개발 서버 포트를 함께 설정합니다. 따라서 이미 개발용 앱이 떠 있어도 다른 포트로 추가 인스턴스를 실행할 수 있습니다.
 
-여러 개발용 앱을 동시에 실행할 때는 `npm run tauri dev` 대신 `npm run tauri:dev`를 사용해야 합니다. 기존 `npm run tauri dev`는 `src-tauri/tauri.conf.json`의 고정 `1420` 포트를 그대로 사용합니다.
+여러 개발용 앱을 동시에 실행할 때는 `pnpm tauri dev` 대신 `pnpm tauri:dev`를 사용해야 합니다. 기존 `pnpm tauri dev`는 `apps/workbench/src-tauri/tauri.conf.json`의 고정 `1420` 포트를 그대로 사용합니다.
 
 특정 시작 포트를 지정하려면 다음처럼 실행합니다.
 
 ```sh
-TAURI_DEV_PORT=1430 npm run tauri:dev
+TAURI_DEV_PORT=1430 pnpm tauri:dev
 ```
 
 실제 앱을 띄우지 않고 선택될 Tauri dev 설정만 확인하려면 다음 명령을 사용할 수 있습니다.
 
 ```sh
-npm run tauri:dev -- --print-config
+pnpm tauri:dev --print-config
 ```
 
 프론트엔드만 실행하려면 다음 명령을 사용할 수 있습니다.
 
 ```sh
-npm run dev
+pnpm dev
 ```
 
 ## 개발용 컴포넌트 선택 (react-grab)
 
-개발 모드(`npm run dev`, `npm run tauri:dev`)에서는 [`react-grab`](https://react-grab.com)이 자동으로 활성화됩니다. UI 요소에 마우스를 올린 뒤 macOS는 `⌘C`, Windows/Linux는 `Ctrl+C`를 누르면 해당 요소의 파일 경로, React 컴포넌트 이름, HTML 소스가 클립보드에 복사되어 코딩 에이전트에게 바로 붙여 넣을 수 있습니다.
+개발 모드(`pnpm dev`, `pnpm tauri:dev`)에서는 [`react-grab`](https://react-grab.com)이 자동으로 활성화됩니다. UI 요소에 마우스를 올린 뒤 macOS는 `⌘C`, Windows/Linux는 `Ctrl+C`를 누르면 해당 요소의 파일 경로, React 컴포넌트 이름, HTML 소스가 클립보드에 복사되어 코딩 에이전트에게 바로 붙여 넣을 수 있습니다.
 
-`src/main.tsx`에서 `import.meta.env.DEV`가 `true`일 때만 동적으로 import 하므로 프로덕션 번들에는 포함되지 않습니다.
+`apps/workbench/src/main.tsx`에서 `import.meta.env.DEV`가 `true`일 때만 동적으로 import 하므로 프로덕션 번들에는 포함되지 않습니다.
 
 ## 빌드
 
 ```sh
-npm run build
+pnpm build
 ```
 
 Tauri 앱 빌드는 다음 명령을 사용합니다.
 
 ```sh
-npm run tauri build
+pnpm tauri build
 ```
 
-현재 `src-tauri/tauri.conf.json`의 `bundle.active` 값은 `false`입니다. 배포 번들을 만들려면 Tauri 번들 설정을 먼저 조정해야 합니다.
+현재 `apps/workbench/src-tauri/tauri.conf.json`의 `bundle.active` 값은 `false`입니다. 배포 번들을 만들려면 Tauri 번들 설정을 먼저 조정해야 합니다.
 
 ## 기본 에이전트
 
@@ -104,7 +106,7 @@ npm run tauri build
 `ACP_AGENT_CATALOG_PATH` 환경 변수에 JSON 파일 경로를 지정하면 기본 에이전트 목록 대신 해당 파일을 읽습니다.
 
 ```sh
-ACP_AGENT_CATALOG_PATH=/path/to/agents.json npm run tauri:dev
+ACP_AGENT_CATALOG_PATH=/path/to/agents.json pnpm tauri:dev
 ```
 
 파일 형식은 다음과 같습니다.
@@ -133,23 +135,18 @@ ACP_AGENT_CATALOG_PATH=/path/to/agents.json npm run tauri:dev
 ## 프로젝트 구조
 
 ```text
-src/
-  app/                    React 앱 진입 및 전역 스타일
-  entities/               프론트엔드 도메인 모델과 메시지 포맷터
-  features/               목표 입력과 에이전트 실행 상태 관리
-  pages/agent-workbench/  워크벤치 페이지
-  shared/                 Tauri API 래퍼와 공용 UI
-  widgets/                이벤트 스트림, 실행 패널
-
-src-tauri/
-  src/adapters/           ACP, Tauri, 파일 시스템, 에이전트 카탈로그 어댑터
-  src/application/        유스케이스
-  src/domain/             도메인 모델과 이벤트
-  src/ports/              포트 인터페이스
+apps/
+  workbench/
+    src/                    React 앱 진입, FSD 레이어, 공용 UI
+    src-tauri/              Tauri Rust backend
+    scripts/                앱 개발/검증 스크립트
+packages/                   향후 공유 패키지 위치
+turbo.json                  Turborepo task graph
+pnpm-workspace.yaml         pnpm workspace 설정
 ```
 
 ## 참고
 
 - 앱 이름은 `ACP Agent Workbench`입니다.
-- 패키지 이름과 Tauri identifier는 `acp-agent-workbench` 기준으로 설정되어 있습니다.
-- 현재 저장소에는 별도 테스트 스크립트가 정의되어 있지 않습니다.
+- 워크스페이스 패키지 이름은 `@acp/workbench`이고, Tauri identifier는 `acp-agent-workbench` 기준으로 설정되어 있습니다.
+- 프론트엔드 테스트는 `pnpm test`, Rust backend 테스트는 `cd apps/workbench/src-tauri && cargo test`로 실행합니다.

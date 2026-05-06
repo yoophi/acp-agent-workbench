@@ -34,29 +34,34 @@ jobs:
             libxdo-dev \
             wget
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.10.0
+
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
 
       - name: Install Node dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Check whitespace
         run: git diff --check
 
       - name: Check frontend FSD boundaries
-        run: npm run check:fsd
+        run: pnpm check:fsd
 
       - name: Check backend architecture boundaries
-        run: npm run check:backend-boundaries
+        run: pnpm check:backend-boundaries
 
       - name: Build frontend
-        run: npm run build
+        run: pnpm build
 
       - name: Run frontend tests when configured
-        run: npm run test --if-present
+        run: pnpm test
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -64,8 +69,8 @@ jobs:
       - name: Cache Rust build outputs
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: apps/workbench/src-tauri
 
       - name: Test backend
-        working-directory: src-tauri
+        working-directory: apps/workbench/src-tauri
         run: cargo test
