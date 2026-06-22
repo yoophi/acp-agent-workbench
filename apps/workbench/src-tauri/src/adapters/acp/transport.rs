@@ -1,4 +1,6 @@
+use agent_client_protocol::{JsonRpcRequest, JsonRpcResponse};
 use anyhow::{Result, bail};
+use serde::Serialize;
 use serde_json::{Value, json};
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
@@ -66,6 +68,24 @@ impl RpcPeer {
                 data: None,
             }),
         }
+    }
+
+    pub async fn request_typed<R>(&self, request: R) -> std::result::Result<R::Response, RpcError>
+    where
+        R: JsonRpcRequest + Serialize,
+    {
+        let method = request.method().to_string();
+        let params = serde_json::to_value(&request).map_err(|err| RpcError {
+            code: -32603,
+            message: err.to_string(),
+            data: None,
+        })?;
+        let result = self.request(&method, params).await?;
+        R::Response::from_value(&method, result).map_err(|err| RpcError {
+            code: i32::from(err.code) as i64,
+            message: err.message,
+            data: err.data,
+        })
     }
 
     pub(crate) async fn respond_ok(&self, id: Value, result: Value) -> Result<()> {

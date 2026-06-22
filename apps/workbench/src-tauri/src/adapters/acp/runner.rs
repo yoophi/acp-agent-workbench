@@ -1,5 +1,11 @@
+use agent_client_protocol::schema::{
+    ProtocolVersion,
+    v1::{
+        ClientCapabilities, ContentBlock, FileSystemCapabilities, Implementation,
+        InitializeRequest, NewSessionRequest, PromptRequest, StopReason, TextContent,
+    },
+};
 use anyhow::{Context, Result, anyhow, bail};
-use serde_json::json;
 use std::{fs, future::Future, path::PathBuf, process::Stdio, sync::Arc, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -145,31 +151,14 @@ where
         });
 
         let init = peer
-            .request(
-                "initialize",
-                json!({
-                    "protocolVersion": 1,
-                    "clientCapabilities": {
-                        "fs": {"readTextFile": true, "writeTextFile": true},
-                        "terminal": true
-                    },
-                    "clientInfo": {
-                        "name": "tauri-acp-agent-workbench",
-                        "title": "Tauri ACP Agent Workbench",
-                        "version": env!("CARGO_PKG_VERSION")
-                    }
-                }),
-            )
+            .request_typed(initialize_request())
             .await
             .map_err(rpc_to_anyhow)?;
         let agent_name = init
-            .pointer("/agentInfo/name")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("unknown");
-        let agent_version = init
-            .pointer("/agentInfo/version")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("");
+            .agent_info
+            .as_ref()
+            .map_or("unknown", |info| &info.name);
+        let agent_version = init.agent_info.as_ref().map_or("", |info| &info.version);
         sink.emit(
             &run_id,
             lifecycle(
@@ -500,22 +489,13 @@ impl SessionHandle for AcpSession {
             let current_id = self.session_id().await;
             let outcome = self
                 .peer
-                .request(
-                    "session/prompt",
-                    json!({
-                        "sessionId": current_id,
-                        "prompt": [{"type": "text", "text": text.clone()}],
-                    }),
-                )
+                .request_typed(PromptRequest::new(
+                    current_id.clone(),
+                    vec![ContentBlock::Text(TextContent::new(text.clone()))],
+                ))
                 .await;
             match outcome {
-                Ok(response) => {
-                    break response
-                        .get("stopReason")
-                        .and_then(serde_json::Value::as_str)
-                        .unwrap_or("unknown")
-                        .to_string();
-                }
+                Ok(response) => break stop_reason_label(response.stop_reason),
                 Err(err) if !reissued && is_session_not_found(&err) => {
                     if !should_reissue_missing_session(self.resume_policy) {
                         return Err(anyhow!("resume session not found: {current_id}"));
@@ -574,17 +554,32 @@ fn should_reissue_missing_session(resume_policy: ResumePolicy) -> bool {
 
 async fn create_agent_session(peer: &RpcPeer, workspace: &PathBuf) -> Result<String> {
     let response = peer
-        .request(
-            "session/new",
-            json!({"cwd": workspace.to_string_lossy(), "mcpServers": []}),
-        )
+        .request_typed(NewSessionRequest::new(workspace.clone()))
         .await
         .map_err(rpc_to_anyhow)?;
-    response
-        .get("sessionId")
-        .and_then(serde_json::Value::as_str)
-        .map(str::to_string)
-        .ok_or_else(|| anyhow!("session/new response missing sessionId"))
+    Ok(response.session_id.to_string())
+}
+
+fn initialize_request() -> InitializeRequest {
+    InitializeRequest::new(ProtocolVersion::V1)
+        .client_capabilities(
+            ClientCapabilities::new()
+                .fs(FileSystemCapabilities::new()
+                    .read_text_file(true)
+                    .write_text_file(true))
+                .terminal(true),
+        )
+        .client_info(
+            Implementation::new("tauri-acp-agent-workbench", env!("CARGO_PKG_VERSION"))
+                .title("Tauri ACP Agent Workbench".to_string()),
+        )
+}
+
+fn stop_reason_label(stop_reason: StopReason) -> String {
+    serde_json::to_value(stop_reason)
+        .ok()
+        .and_then(|value| value.as_str().map(str::to_string))
+        .unwrap_or_else(|| "unknown".to_string())
 }
 
 fn is_session_not_found(err: &RpcError) -> bool {
