@@ -2,7 +2,7 @@ use agent_client_protocol::schema::{
     ProtocolVersion,
     v1::{
         ClientCapabilities, ContentBlock, FileSystemCapabilities, Implementation,
-        InitializeRequest, NewSessionRequest, PromptRequest, TextContent,
+        InitializeRequest, NewSessionRequest, PromptRequest, StopReason, TextContent,
     },
 };
 use anyhow::{Context, Result, anyhow, bail};
@@ -575,7 +575,7 @@ fn initialize_request() -> InitializeRequest {
         )
 }
 
-fn stop_reason_label(stop_reason: impl serde::Serialize) -> String {
+fn stop_reason_label(stop_reason: StopReason) -> String {
     serde_json::to_value(stop_reason)
         .ok()
         .and_then(|value| value.as_str().map(str::to_string))

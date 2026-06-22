@@ -1,4 +1,4 @@
-use agent_client_protocol::{JsonRpcMessage, JsonRpcRequest, JsonRpcResponse};
+use agent_client_protocol::{JsonRpcRequest, JsonRpcResponse};
 use anyhow::{Result, bail};
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -72,8 +72,7 @@ impl RpcPeer {
 
     pub async fn request_typed<R>(&self, request: R) -> std::result::Result<R::Response, RpcError>
     where
-        R: JsonRpcMessage + JsonRpcRequest + Serialize,
-        R::Response: JsonRpcResponse,
+        R: JsonRpcRequest + Serialize,
     {
         let method = request.method().to_string();
         let params = serde_json::to_value(&request).map_err(|err| RpcError {
